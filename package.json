@@ -1,18 +1,35 @@
 {
   "name": "vael-atelier-fast-commerce",
   "version": "1.0.0",
+  "description": "Monochrome luxury editorial CMS powered by Hono SSR and file JSON storage.",
   "private": true,
   "type": "module",
+  "license": "UNLICENSED",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "start": "node src/server.js",
-    "check": "node --check src/server.js && node --check src/render.js && node --check src/content-store.js && node --check public/app.js && node scripts/check-static.mjs && node scripts/smoke-test.mjs",
-    "generate:assets": "powershell -ExecutionPolicy Bypass -File scripts/generate-assets.ps1"
+    "start": "node scripts/preflight.mjs && node src/server.js",
+    "start:raw": "node src/server.js",
+    "start:pterodactyl": "node scripts/preflight.mjs && node src/server.js",
+    "preflight": "node scripts/preflight.mjs",
+    "health": "node scripts/health-check.mjs",
+    "check": "npm run check:syntax && npm run check:static && npm run test:smoke",
+    "check:syntax": "node --check src/server.js && node --check src/render.js && node --check src/content-store.js && node --check src/content-schema.js && node --check src/markdown.js && node --check public/app.js && node --check scripts/preflight.mjs && node --check scripts/health-check.mjs && node --check scripts/content-init.mjs && node --check scripts/content-doctor.mjs && node --check scripts/content-backup.mjs && node --check scripts/check-static.mjs && node --check scripts/smoke-test.mjs",
+    "check:static": "node scripts/check-static.mjs",
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "content:init": "node scripts/content-init.mjs",
+    "content:doctor": "node scripts/content-doctor.mjs",
+    "content:backup": "node scripts/content-backup.mjs",
+    "assets:generate:win": "powershell -ExecutionPolicy Bypass -File scripts/generate-assets.ps1",
+    "generate:assets": "npm run assets:generate:win"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",
-    "hono": "^4.10.7"
+    "hono": "^4.10.7",
+    "marked": "^18.0.2",
+    "nanoid": "^5.1.11",
+    "sanitize-html": "^2.17.3",
+    "zod": "^4.4.1"
   }
 }

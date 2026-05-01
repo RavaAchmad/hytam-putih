@@ -1,4 +1,7 @@
 :root {
+  /* Template: Monochrome Maison
+     Inspired by high-fashion editorial sites: large campaign frames,
+     sharp black/white contrast, quiet cards, magazine spacing. */
   --ink: #050505;
   --charcoal: #171717;
   --muted: #666;
@@ -10,6 +13,14 @@
   --shadow: 0 18px 56px rgb(0 0 0 / 14%);
   --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --serif: Georgia, "Times New Roman", serif;
+  --template-frame: min(1180px, calc(100% - 40px));
+  --template-frame-wide: min(1280px, calc(100% - 40px));
+  --template-section-y: 88px;
+  --template-radius: 4px;
+  --template-border: 1px solid var(--line);
+  --template-hero-min: 620px;
+  --template-hero-height: 86svh;
+  --template-card-gap: 18px;
 }
 
 * {
@@ -26,6 +37,10 @@ body {
   color: var(--ink);
   font-family: var(--sans);
   line-height: 1.5;
+}
+
+body[data-template="monochrome-maison"] {
+  --active-template: "monochrome-maison";
 }
 
 img {
@@ -111,7 +126,7 @@ h3 {
   align-items: center;
   min-height: 66px;
   padding: 0 28px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: var(--template-border);
   background: rgb(247 247 243 / 96%);
 }
 
@@ -169,7 +184,7 @@ h3 {
   min-height: 38px;
   padding: .55rem .9rem;
   border: 1px solid var(--ink);
-  border-radius: 4px;
+  border-radius: var(--template-radius);
   font-size: .78rem;
   text-transform: uppercase;
 }
@@ -184,8 +199,8 @@ h3 {
 }
 
 .hero {
-  min-height: 620px;
-  height: 86svh;
+  min-height: var(--template-hero-min);
+  height: var(--template-hero-height);
   max-height: 820px;
 }
 
@@ -307,9 +322,9 @@ h3 {
 }
 
 .section {
-  width: min(1180px, calc(100% - 40px));
+  width: var(--template-frame);
   margin: 0 auto;
-  padding: 88px 0;
+  padding: var(--template-section-y) 0;
 }
 
 .section-heading {
@@ -348,7 +363,7 @@ h3 {
 .admin-grid,
 .media-grid {
   display: grid;
-  gap: 18px;
+  gap: var(--template-card-gap);
 }
 
 .campaign-grid {
@@ -362,8 +377,8 @@ h3 {
 .boutique-list article,
 .admin-card,
 .media-item {
-  border: 1px solid var(--line);
-  border-radius: 4px;
+  border: var(--template-border);
+  border-radius: var(--template-radius);
   background: var(--surface);
   overflow: hidden;
 }
@@ -568,7 +583,7 @@ h3 {
   grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
   gap: 52px;
   align-items: center;
-  border-top: 1px solid var(--line);
+  border-top: var(--template-border);
 }
 
 .code-visual {
@@ -701,7 +716,7 @@ h3 {
   width: min(1180px, calc(100% - 40px));
   padding: 54px 32px;
   border: 1px solid var(--ink);
-  border-radius: 4px;
+  border-radius: var(--template-radius);
   background: var(--ink);
   color: var(--inverse);
 }
@@ -788,7 +803,7 @@ address {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
   gap: 40px;
-  width: min(1280px, calc(100% - 40px));
+  width: var(--template-frame-wide);
   margin: 0 auto;
   padding: 48px 0 88px;
 }
@@ -848,6 +863,30 @@ address {
 
 .prose {
   max-width: 840px;
+}
+
+.cms-richtext h2,
+.cms-richtext h3 {
+  margin: 2rem 0 .8rem;
+}
+
+.cms-richtext p,
+.cms-richtext li,
+.cms-richtext blockquote {
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.cms-richtext a {
+  border-bottom: 1px solid var(--ink);
+}
+
+.cms-richtext blockquote {
+  margin: 1.6rem 0;
+  padding-left: 1.2rem;
+  border-left: 3px solid var(--ink);
+  color: var(--ink);
+  font-family: var(--serif);
 }
 
 .site-footer {

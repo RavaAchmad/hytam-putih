@@ -8,13 +8,15 @@ const srcDir = join(root, 'src')
 const srcFiles = (await readdir(srcDir))
   .filter((file) => file.endsWith('.js'))
   .map((file) => `src/${file}`)
+const scriptFiles = (await readdir(join(root, 'scripts')))
+  .filter((file) => file.endsWith('.mjs'))
+  .map((file) => `scripts/${file}`)
 
 const files = [
   ...srcFiles,
+  ...scriptFiles,
   'public/styles.css',
-  'public/app.js',
-  'scripts/check-static.mjs',
-  'scripts/smoke-test.mjs'
+  'public/app.js'
 ]
 
 let total = 0
@@ -27,6 +29,9 @@ const css = await readFile(join(root, 'public/styles.css'), 'utf8')
 const appJs = await readFile(join(root, 'public/app.js'), 'utf8')
 const server = await readFile(join(root, 'src/server.js'), 'utf8')
 const store = await readFile(join(root, 'src/content-store.js'), 'utf8')
+const schema = await readFile(join(root, 'src/content-schema.js'), 'utf8')
+const markdown = await readFile(join(root, 'src/markdown.js'), 'utf8')
+const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 const html = renderHome(defaultContent)
 
 const renderedExternalRefs = [...html.matchAll(/(?:src|href)=["']https?:\/\//g)]
@@ -63,6 +68,20 @@ if (!server.includes('Production env missing or unsafe')) {
 
 if (!store.includes('image/png,image/jpeg,image/webp,image/gif') && !store.includes('imageTypes')) {
   throw new Error('Upload image type guard is missing.')
+}
+
+for (const dependency of ['zod', 'nanoid', 'marked', 'sanitize-html']) {
+  if (!packageJson.dependencies?.[dependency]) {
+    throw new Error(`Expected dependency missing: ${dependency}`)
+  }
+}
+
+if (!schema.includes('contentSchema') || !store.includes('validateContent')) {
+  throw new Error('Zod content validation is not wired.')
+}
+
+if (!markdown.includes('sanitizeHtml') || !markdown.includes('marked.parse')) {
+  throw new Error('Markdown rendering must be sanitized.')
 }
 
 const clientBytes = Buffer.byteLength(css) + Buffer.byteLength(appJs)

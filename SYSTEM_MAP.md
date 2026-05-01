@@ -1,7 +1,7 @@
 # Project Summary
 
 - Tujuan aplikasi: website luxury editorial multi-page untuk VAEL Atelier dengan CMS admin single-user, katalog produk premium, collection magazine pages, journal, boutiques, dan inquiry ringan.
-- Tech stack utama: Node.js >=20, Hono SSR, `@hono/node-server`, file JSON storage, HTML renderer manual, CSS/JS statis kecil, PowerShell `System.Drawing` untuk aset JPEG monochrome.
+- Tech stack utama: Node.js >=20, Hono SSR, `@hono/node-server`, Zod content validation, Nano ID generation, Marked + sanitize-html untuk journal markdown aman, file JSON storage, HTML renderer manual, CSS/JS statis kecil, PowerShell `System.Drawing` untuk aset JPEG monochrome.
 - DB/queue/integrasi penting: DB Not found; queue Not found; storage utama adalah `DATA_DIR/content.json` dan `DATA_DIR/uploads/`.
 - Pola arsitektur singkat: Hono route/handler -> file JSON content store -> SSR renderer -> public HTML; admin POST memakai signed cookie + CSRF lalu menulis ulang content JSON.
 
@@ -27,7 +27,10 @@
 - `POST /admin/media/upload` -> `saveUploadedImage(file, alt)` -> `writeFile(DATA_DIR/uploads)` -> update `content.media`.
 - `POST /admin/content-json` -> parse JSON -> `writeContent(nextContent)` -> normalizer -> persist.
 - Unknown route -> `notFound(c, content?)` -> `renderNotFound()` -> 404 HTML.
-- `npm run check` -> `node --check` all source/client JS -> `check-static.mjs` render/static guard -> `smoke-test.mjs` Hono `app.request()` route tests.
+- Journal render -> `renderJournalDetail()` -> `renderMarkdown()` -> `marked.parse()` -> `sanitizeHtml()` -> safe rich-text HTML.
+- `npm run start` -> `preflight.mjs` -> env/data-dir write check -> `src/server.js`.
+- `npm run check` -> `check:syntax` all source/client/tool JS -> `check-static.mjs` render/static/module guard -> `smoke-test.mjs` Hono `app.request()` route tests.
+- `npm run content:init|doctor|backup` -> file tooling against `DATA_DIR/content.json`.
 
 # Clean Tree
 
@@ -52,11 +55,18 @@
 |   |-- site.webmanifest
 |   `-- styles.css
 |-- scripts/
+|   |-- content-backup.mjs
+|   |-- content-doctor.mjs
+|   |-- content-init.mjs
 |   |-- check-static.mjs
 |   |-- generate-assets.ps1
+|   |-- health-check.mjs
+|   |-- preflight.mjs
 |   `-- smoke-test.mjs
 |-- src/
+|   |-- content-schema.js
 |   |-- content-store.js
+|   |-- markdown.js
 |   |-- render.js
 |   `-- server.js
 |-- .dockerignore
@@ -76,7 +86,15 @@
 
 - `src/content-store.js`
   - Fungsi/class publik utama: `defaultContent`, `ensureStore`, `readContent`, `writeContent`, `saveUploadedImage`, `readUploadedImage`, `deleteUploadedImage`, `slugify`, `newId`.
-  - Peran modul: file-based CMS store, default schema, normalizer kompatibel data lama, dan upload image storage.
+  - Peran modul: file-based CMS store, default schema, normalizer kompatibel data lama, upload image storage, dan pemanggil validasi Zod.
+
+- `src/content-schema.js`
+  - Fungsi/class publik utama: `contentSchema`, `validateContent`.
+  - Peran modul: schema Zod untuk memastikan struktur CMS valid sebelum dipakai/render/disimpan.
+
+- `src/markdown.js`
+  - Fungsi/class publik utama: `renderMarkdown`.
+  - Peran modul: mengubah journal body Markdown menjadi HTML yang disanitasi.
 
 - `src/render.js`
   - Fungsi/class publik utama: `renderHome`, `renderCollectionsIndex`, `renderCollectionDetail`, `renderProductDetail`, `renderJournalIndex`, `renderJournalDetail`, `renderBoutiques`, `renderLogin`, `renderAdmin`, `renderNotFound`, `escapeHtml`.
@@ -100,7 +118,7 @@
 
 - `scripts/check-static.mjs`
   - Fungsi/class publik utama: top-level validation flow.
-  - Peran modul: static/render guard untuk SSR output, external refs, LCP/lazy loading, monochrome CSS tokens, env guard, upload guard, dan size budget.
+  - Peran modul: static/render guard untuk SSR output, external refs, LCP/lazy loading, monochrome CSS tokens, env guard, upload guard, dependency guard, dan size budget.
 
 - `scripts/smoke-test.mjs`
   - Fungsi/class publik utama: top-level smoke flow.
@@ -110,9 +128,21 @@
   - Fungsi/class publik utama: `New-Canvas`, `Save-Jpeg`, drawing helpers, `New-ProductImage`.
   - Peran modul: generator aset JPEG monochrome lokal untuk hero dan product imagery.
 
+- `scripts/preflight.mjs`
+  - Fungsi/class publik utama: top-level preflight flow.
+  - Peran modul: mengecek env production wajib dan akses tulis `DATA_DIR` sebelum server start.
+
+- `scripts/health-check.mjs`
+  - Fungsi/class publik utama: top-level health flow.
+  - Peran modul: mengecek endpoint `/api/health` pada server yang sedang berjalan.
+
+- `scripts/content-init.mjs`, `scripts/content-doctor.mjs`, `scripts/content-backup.mjs`
+  - Fungsi/class publik utama: top-level content tooling.
+  - Peran modul: seed, inspeksi, dan backup content JSON untuk operasional Pterodactyl.
+
 - `package.json`
-  - Fungsi/class publik utama: npm scripts `start`, `check`, `generate:assets`.
-  - Peran modul: manifest Node project, dependency, engine, dan command operasional.
+  - Fungsi/class publik utama: npm scripts `start`, `preflight`, `health`, `check`, `content:*`, `assets:generate:win`.
+  - Peran modul: manifest Node project, dependency runtime, engine, dan command operasional container.
 
 - `Dockerfile`
   - Fungsi/class publik utama: Not found; container build steps.
@@ -128,7 +158,7 @@
   - `.env*`: Not found.
   - `pterodactyl.env.example`: contoh env wajib production.
   - `Dockerfile`: default container env dan writeable `/app/data`.
-  - `package.json`: scripts/dependencies.
+  - `package.json`: scripts/dependencies (`hono`, `@hono/node-server`, `zod`, `nanoid`, `marked`, `sanitize-html`).
   - `public/site.webmanifest`: web app metadata.
   - `.github/workflows/*.yml` dan `.github/dependabot.yml`: CI/security automation.
 

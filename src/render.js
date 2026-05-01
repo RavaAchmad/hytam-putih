@@ -1,3 +1,5 @@
+import { renderMarkdown } from './markdown.js'
+
 export function renderHome(content) {
   const featuredProducts = content.products.slice(0, 8)
   const featuredJournal = content.journal.slice(0, 3)
@@ -185,8 +187,8 @@ export function renderJournalDetail(content, article) {
       ${renderHeader(content)}
       <main id="main">
         ${renderPageHero(article.title, article.summary, article.image, article.alt, article.type)}
-        <article class="section prose">
-          ${paragraphs(article.body)}
+        <article class="section prose cms-richtext">
+          ${renderMarkdown(article.body)}
           <a class="text-link" href="/journal">Back to journal</a>
         </article>
       </main>
@@ -789,7 +791,7 @@ function renderDocument({ title, description, body, scripts = [], ogImage = '/as
     <link rel="preload" as="image" href="${attr(ogImage)}" fetchpriority="high">
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body>
+  <body data-template="monochrome-maison">
     ${body}
     ${scripts.map((src) => `<script src="${attr(src)}" defer></script>`).join('')}
   </body>
@@ -889,15 +891,6 @@ function specsToText(specs = []) {
 
 function sectionsToText(sections = []) {
   return sections.map((section) => `${section.title} | ${section.text} | ${section.image} | ${section.alt}`).join('\n')
-}
-
-function paragraphs(value) {
-  return String(value || '')
-    .split(/\n{2,}/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => `<p>${escapeLines(part)}</p>`)
-    .join('')
 }
 
 function escapeLines(value) {

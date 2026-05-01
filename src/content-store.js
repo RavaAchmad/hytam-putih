@@ -1,7 +1,10 @@
-import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, extname, join, resolve } from 'node:path'
+import { customAlphabet } from 'nanoid'
+import { validateContent } from './content-schema.js'
+
+const shortId = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 8)
 
 export const dataDir = resolve(process.env.DATA_DIR || './data')
 export const uploadDir = join(dataDir, 'uploads')
@@ -287,12 +290,12 @@ export async function ensureStore() {
 export async function readContent() {
   await ensureStore()
   const raw = await readFile(contentPath, 'utf8')
-  return normalizeContent(JSON.parse(raw))
+  return validateContent(normalizeContent(JSON.parse(raw)))
 }
 
 export async function writeContent(content) {
   await mkdir(dataDir, { recursive: true })
-  const normalized = normalizeContent(content)
+  const normalized = validateContent(normalizeContent(content))
   await writeFile(contentPath, `${JSON.stringify(normalized, null, 2)}\n`, 'utf8')
   return normalized
 }
@@ -360,11 +363,11 @@ export function slugify(value) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 64)
 
-  return slug || randomUUID().slice(0, 8)
+  return slug || shortId()
 }
 
 export function newId(prefix) {
-  return `${slugify(prefix)}-${randomUUID().slice(0, 8)}`
+  return `${slugify(prefix)}-${shortId()}`
 }
 
 function normalizeContent(content = {}) {

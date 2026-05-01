@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { compress } from 'hono/compress'
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { etag } from 'hono/etag'
 import { secureHeaders } from 'hono/secure-headers'
 import { Hono } from 'hono'
@@ -693,26 +694,29 @@ function safeEqual(a = '', b = '') {
 }
 
 function setAdminCookie(c, token) {
-  c.header('Set-Cookie', `vael_admin=${token}; Path=/; Max-Age=${sessionMaxAge}; HttpOnly; SameSite=Lax${secureSuffix(c)}`)
+  setCookie(c, 'vael_admin', token, {
+    path: '/',
+    maxAge: sessionMaxAge,
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: isSecureRequest(c)
+  })
 }
 
 function clearAdminCookie(c) {
-  c.header('Set-Cookie', `vael_admin=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secureSuffix(c)}`)
+  deleteCookie(c, 'vael_admin', {
+    path: '/',
+    secure: isSecureRequest(c)
+  })
 }
 
 function readCookie(c, name) {
-  const cookie = c.req.header('cookie') || ''
-  const prefix = `${name}=`
-  return cookie
-    .split(';')
-    .map((item) => item.trim())
-    .find((item) => item.startsWith(prefix))
-    ?.slice(prefix.length) || ''
+  return getCookie(c, name) || ''
 }
 
-function secureSuffix(c) {
+function isSecureRequest(c) {
   const proto = c.req.header('x-forwarded-proto') || new URL(c.req.url).protocol.replace(':', '')
-  return proto === 'https' ? '; Secure' : ''
+  return proto === 'https'
 }
 
 function field(body, key) {
