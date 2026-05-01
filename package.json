@@ -25,7 +25,7 @@
     "content:backup": "node scripts/content-backup.mjs"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.6",
+    "@hono/node-server": "^2.0.1",
     "hono": "^4.10.7",
     "marked": "^18.0.2",
     "nanoid": "^5.1.11",
