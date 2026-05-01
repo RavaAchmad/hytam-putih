@@ -1,27 +1,32 @@
 import { existsSync } from 'node:fs'
-import { readFile, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
-import { validateContent } from '../src/content-schema.js'
+import { stat } from 'node:fs/promises'
+import { dataDir, ensureStore, readContent, storeFiles } from '../src/content-store.js'
 
-const dataDir = resolve(process.env.DATA_DIR || './data')
-const contentPath = join(dataDir, 'content.json')
-
-if (!existsSync(contentPath)) {
-  console.log(`Content store not found: ${contentPath}`)
+const missing = Object.values(storeFiles).filter((file) => !existsSync(file))
+if (missing.length) {
+  console.log(`Content store incomplete in: ${dataDir}`)
   console.log('Run npm run content:init or start the server once to initialize default content.')
-  process.exit(0)
+  await ensureStore()
 }
 
-const info = await stat(contentPath)
-const content = validateContent(JSON.parse(await readFile(contentPath, 'utf8')))
+const content = await readContent()
+const files = {}
+for (const [key, file] of Object.entries(storeFiles)) {
+  files[key] = {
+    path: file,
+    bytes: (await stat(file)).size
+  }
+}
 
 console.log(JSON.stringify({
-  contentPath,
-  bytes: info.size,
+  dataDir,
+  files,
   campaigns: content.campaigns.length,
   collections: content.collections.length,
   products: content.products.length,
-  journal: content.journal.length,
+  editorials: content.editorials.length,
+  orders: content.orders.length,
+  subscribers: content.subscribers.length,
   boutiques: content.boutiques.length,
   media: content.media.length,
   uploads: content.media.filter((item) => item.src?.startsWith('/uploads/')).length,

@@ -1,7 +1,7 @@
 {
-  "name": "vael-atelier-fast-commerce",
+  "name": "maison-rava-luxury-commerce",
   "version": "1.0.0",
-  "description": "Monochrome luxury editorial CMS powered by Hono SSR and file JSON storage.",
+  "description": "Production-ready luxury editorial commerce for Pterodactyl powered by Hono SSR, API routes, and JSON CMS storage.",
   "private": true,
   "type": "module",
   "license": "UNLICENSED",
@@ -9,20 +9,20 @@
     "node": ">=20"
   },
   "scripts": {
+    "dev": "node src/server.js",
+    "build": "npm run check:syntax && npm run check:static",
     "start": "node scripts/preflight.mjs && node src/server.js",
     "start:raw": "node src/server.js",
     "start:pterodactyl": "node scripts/preflight.mjs && node src/server.js",
     "preflight": "node scripts/preflight.mjs",
     "health": "node scripts/health-check.mjs",
     "check": "npm run check:syntax && npm run check:static && npm run test:smoke",
-    "check:syntax": "node --check src/server.js && node --check src/render.js && node --check src/content-store.js && node --check src/content-schema.js && node --check src/markdown.js && node --check public/app.js && node --check scripts/preflight.mjs && node --check scripts/health-check.mjs && node --check scripts/content-init.mjs && node --check scripts/content-doctor.mjs && node --check scripts/content-backup.mjs && node --check scripts/check-static.mjs && node --check scripts/smoke-test.mjs",
+    "check:syntax": "node --check src/server.js && node --check src/api-routes.js && node --check src/render.js && node --check src/content-store.js && node --check src/content-schema.js && node --check src/seed-data.js && node --check src/markdown.js && node --check src/template-profile.js && node --check public/app.js && node --check scripts/preflight.mjs && node --check scripts/health-check.mjs && node --check scripts/content-init.mjs && node --check scripts/content-doctor.mjs && node --check scripts/content-backup.mjs && node --check scripts/check-static.mjs && node --check scripts/smoke-test.mjs",
     "check:static": "node scripts/check-static.mjs",
     "test:smoke": "node scripts/smoke-test.mjs",
     "content:init": "node scripts/content-init.mjs",
     "content:doctor": "node scripts/content-doctor.mjs",
-    "content:backup": "node scripts/content-backup.mjs",
-    "assets:generate:win": "powershell -ExecutionPolicy Bypass -File scripts/generate-assets.ps1",
-    "generate:assets": "npm run assets:generate:win"
+    "content:backup": "node scripts/content-backup.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",

@@ -1,22 +1,19 @@
 import { access, mkdir, unlink, writeFile } from 'node:fs/promises'
 import { constants } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 const isProduction = process.env.NODE_ENV === 'production'
-const dataDir = resolve(process.env.DATA_DIR || './data')
+const defaultDataDir = existsSync('/home/container') ? '/home/container/data' : './data'
+const dataDir = resolve(process.env.DATA_DIR || defaultDataDir)
 const missing = []
 const unsafe = []
 
 if (isProduction && !process.env.DATA_DIR) missing.push('DATA_DIR')
-if (isProduction && !process.env.ADMIN_PASSWORD) missing.push('ADMIN_PASSWORD')
-if (isProduction && !process.env.ADMIN_SESSION_SECRET) missing.push('ADMIN_SESSION_SECRET')
+if (isProduction && !process.env.ADMIN_TOKEN) missing.push('ADMIN_TOKEN')
 
-if (isProduction && ['change-this-password', 'change-me-to-a-long-random-password'].includes(process.env.ADMIN_PASSWORD)) {
-  unsafe.push('ADMIN_PASSWORD')
-}
-
-if (isProduction && (!process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_SESSION_SECRET === process.env.ADMIN_PASSWORD || process.env.ADMIN_SESSION_SECRET === 'change-me-to-a-different-long-random-secret')) {
-  unsafe.push('ADMIN_SESSION_SECRET')
+if (isProduction && ['change-me-admin-token', 'change-this-secure-token', 'change-this-token'].includes(process.env.ADMIN_TOKEN)) {
+  unsafe.push('ADMIN_TOKEN')
 }
 
 if (missing.length || unsafe.length) {

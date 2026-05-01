@@ -1,8 +1,9 @@
 import { renderMarkdown } from './markdown.js'
+import { templateProfile } from './template-profile.js'
 
 export function renderHome(content) {
-  const featuredProducts = content.products.slice(0, 8)
-  const featuredJournal = content.journal.slice(0, 3)
+  const featuredProducts = featuredBySlug(content.products, content.homepage?.featuredProductSlugs, 8)
+  const featuredJournal = featuredBySlug(content.editorials || content.journal, content.homepage?.featuredEditorialSlugs, 3)
 
   const body = `
     <a class="skip-link" href="#main">Lewati ke konten</a>
@@ -37,7 +38,7 @@ export function renderHome(content) {
       ${renderCodeSection(content)}
       ${renderMaisonSection(content)}
       ${renderAtelierSection(content)}
-      ${renderJournalPreview(featuredJournal)}
+      ${renderEditorialPreview(featuredJournal)}
       ${renderAppointment(content)}
       ${renderBoutiquePreview(content)}
       ${renderNewsletter(content)}
@@ -46,7 +47,7 @@ export function renderHome(content) {
   `
 
   return renderDocument({
-    title: `${content.site.brand} | Monochrome Luxury CMS`,
+    title: `${content.site.brand} | Luxury Fashion Editorial Commerce`,
     description: content.site.description,
     ogImage: content.site.heroImage,
     body,
@@ -57,7 +58,7 @@ export function renderHome(content) {
 export function renderCollectionsIndex(content) {
   return renderDocument({
     title: `Collections | ${content.site.brand}`,
-    description: 'Collection stories, campaign edits, and product lines from VAEL Atelier.',
+    description: 'Collection stories, campaign edits, and product lines from MAISON RAVA.',
     ogImage: content.collections[0]?.coverImage || content.site.heroImage,
     body: `
       <a class="skip-link" href="#main">Lewati ke konten</a>
@@ -73,6 +74,60 @@ export function renderCollectionsIndex(content) {
       </main>
       ${renderFooter(content)}
     `
+  })
+}
+
+export function renderShopIndex(content, query = {}) {
+  const products = filterProducts(content.products, query)
+  const selectedCategory = String(query.category || 'all').toLowerCase()
+  const selectedCollection = String(query.collection || '').toLowerCase()
+  const sort = String(query.sort || 'newest')
+
+  return renderDocument({
+    title: `Shop | ${content.site.brand}`,
+    description: 'Shop sculptural tailoring, evening pieces, leather goods, object jewelry, and accessories from MAISON RAVA.',
+    ogImage: products[0]?.images?.[0] || content.site.heroImage,
+    body: `
+      <a class="skip-link" href="#main">Lewati ke konten</a>
+      ${renderHeader(content)}
+      <main id="main">
+        ${renderPageHero('Shop', 'A compact catalog of surreal tailoring, objects, and evening silhouettes.', content.site.heroImage, content.site.heroAlt, 'Commerce')}
+        <section class="section shop-page" aria-labelledby="shop-grid-title">
+          <form class="shop-filter-panel" action="/shop" method="get">
+            <label>Search<input name="q" value="${attr(query.q || '')}" placeholder="coat, cuff, gown"></label>
+            <label>Category
+              <select name="category">
+                ${content.categories.map((category) => option(category.toLowerCase(), category, selectedCategory)).join('')}
+              </select>
+            </label>
+            <label>Collection
+              <select name="collection">
+                ${option('', 'All collections', selectedCollection)}
+                ${content.collections.map((collection) => option(collection.slug, collection.title, selectedCollection)).join('')}
+              </select>
+            </label>
+            <label>Min price<input name="min" inputmode="numeric" value="${attr(query.min || '')}" placeholder="0"></label>
+            <label>Max price<input name="max" inputmode="numeric" value="${attr(query.max || '')}" placeholder="5000"></label>
+            <label>Sort
+              <select name="sort">
+                ${option('newest', 'Newest', sort)}
+                ${option('price-low', 'Price low', sort)}
+                ${option('price-high', 'Price high', sort)}
+              </select>
+            </label>
+            <button class="button primary" type="submit">Apply</button>
+          </form>
+          <div class="section-heading">
+            <p class="eyebrow">Catalog</p>
+            <h2 id="shop-grid-title">${products.length} pieces.</h2>
+            <a class="text-link" href="/cart">View cart</a>
+          </div>
+          ${products.length ? `<div class="product-grid">${products.map(renderProductCard).join('')}</div>` : renderEmptyState('No pieces match this filter.', 'Reset the filters or search for another house code.', '/shop')}
+        </section>
+      </main>
+      ${renderFooter(content)}
+    `,
+    scripts: ['/app.js']
   })
 }
 
@@ -139,9 +194,17 @@ export function renderProductDetail(content, product) {
               ${collection ? `<div><dt>Collection</dt><dd><a href="/collections/${attr(collection.slug)}">${escapeHtml(collection.title)}</a></dd></div>` : ''}
             </dl>
             <div class="hero-actions">
-              <a class="button primary" href="${attr(inquiry)}">Request inquiry</a>
+              <button class="button primary" type="button" data-add-cart data-slug="${attr(product.slug)}" data-title="${attr(product.title)}" data-price="${attr(product.priceValue || 0)}" data-image="${attr(product.images[0])}">Add to cart</button>
               ${content.site.whatsapp ? `<a class="button secondary dark" href="${attr(whatsappHref(content, product.title))}">WhatsApp</a>` : ''}
             </div>
+            <label class="size-select">Size
+              <select data-size-select>
+                ${(product.sizes || ['XS', 'S', 'M', 'L']).map((size) => `<option>${escapeHtml(size)}</option>`).join('')}
+              </select>
+            </label>
+            <a class="text-link" href="${attr(inquiry)}">Request private inquiry</a>
+            <details class="accordion" open><summary>Shipping</summary><p>Mock checkout uses an invoice flow. Orders are reviewed before fulfilment.</p></details>
+            <details class="accordion"><summary>Returns</summary><p>Prototype returns policy: client care confirms eligibility by email after invoice creation.</p></details>
           </aside>
         </section>
         <section class="section" aria-labelledby="related-title">
@@ -154,7 +217,8 @@ export function renderProductDetail(content, product) {
         </section>
       </main>
       ${renderFooter(content)}
-    `
+    `,
+    scripts: ['/app.js']
   })
 }
 
@@ -170,6 +234,212 @@ export function renderJournalIndex(content) {
         ${renderPageHero('Journal', 'Release notes, craft studies, and image-led stories.', content.journal[0]?.image || content.site.heroImage, content.journal[0]?.alt || content.site.heroAlt)}
         <section class="section">
           <div class="journal-list large">${content.journal.map(renderJournalCard).join('')}</div>
+        </section>
+      </main>
+      ${renderFooter(content)}
+    `
+  })
+}
+
+export function renderEditorialIndex(content) {
+  return renderDocument({
+    title: `Editorial | ${content.site.brand}`,
+    description: 'Editorial notes, craft studies, campaign stories, and commerce essays from MAISON RAVA.',
+    ogImage: content.editorials[0]?.image || content.site.heroImage,
+    body: `
+      <a class="skip-link" href="#main">Lewati ke konten</a>
+      ${renderHeader(content)}
+      <main id="main">
+        ${renderPageHero('Editorial', 'Campaign stories, craft studies, and house notes.', content.editorials[0]?.image || content.site.heroImage, content.editorials[0]?.alt || content.site.heroAlt)}
+        <section class="section">
+          <div class="journal-list large">${content.editorials.map(renderEditorialCard).join('')}</div>
+        </section>
+      </main>
+      ${renderFooter(content)}
+    `
+  })
+}
+
+export function renderEditorialDetail(content, article) {
+  return renderDocument({
+    title: `${article.title} | ${content.site.brand}`,
+    description: article.summary,
+    ogImage: article.image,
+    body: `
+      <a class="skip-link" href="#main">Lewati ke konten</a>
+      ${renderHeader(content)}
+      <main id="main">
+        ${renderPageHero(article.title, article.summary, article.image, article.alt, article.type)}
+        <article class="section prose cms-richtext">
+          ${renderMarkdown(article.body)}
+          <a class="text-link" href="/editorial">Back to editorial</a>
+        </article>
+      </main>
+      ${renderFooter(content)}
+    `
+  })
+}
+
+export function renderCart(content) {
+  return renderDocument({
+    title: `Cart | ${content.site.brand}`,
+    description: 'Review selected MAISON RAVA pieces before invoice checkout.',
+    body: `
+      <a class="skip-link" href="#main">Lewati ke konten</a>
+      ${renderHeader(content)}
+      <main id="main">
+        ${renderPageHero('Cart', 'Review pieces, quantities, and invoice estimate.', content.site.heroImage, content.site.heroAlt, 'Local cart')}
+        <section class="section cart-layout" data-cart-page>
+          <div class="cart-items" data-cart-items>${renderLoadingState('Loading cart')}</div>
+          <aside class="summary-card">
+            <p class="eyebrow">Order summary</p>
+            <div data-cart-summary></div>
+            <a class="button primary" href="/checkout">Checkout</a>
+            <a class="button secondary dark" href="/shop">Continue shopping</a>
+          </aside>
+        </section>
+      </main>
+      ${renderFooter(content)}
+    `,
+    scripts: ['/app.js']
+  })
+}
+
+export function renderCheckout(content) {
+  return renderDocument({
+    title: `Checkout | ${content.site.brand}`,
+    description: 'Create a mock MAISON RAVA invoice with QRIS, bank transfer, or e-wallet method.',
+    body: `
+      <a class="skip-link" href="#main">Lewati ke konten</a>
+      ${renderHeader(content)}
+      <main id="main">
+        ${renderPageHero('Checkout', 'Create an invoice for the private salon team.', content.site.heroImage, content.site.heroAlt, 'Mock invoice')}
+        <section class="section checkout-layout">
+          <form class="checkout-form" data-checkout-form>
+            <div class="form-grid">
+              ${formField('name', 'Name', 'text', 'Your name')}
+              ${formField('email', 'Email', 'email', 'client@example.com')}
+              ${formField('phone', 'Phone', 'tel', '+62')}
+              ${formField('country', 'Country', 'text', 'Indonesia')}
+            </div>
+            <label>Address<textarea name="address" rows="4" required placeholder="Delivery or appointment address"></textarea></label>
+            <label>Payment method
+              <select name="paymentMethod" required>
+                <option>QRIS</option>
+                <option>Bank Transfer</option>
+                <option>E-Wallet</option>
+              </select>
+            </label>
+            <p class="form-message" data-checkout-message></p>
+            <button class="button primary" type="submit">Create invoice</button>
+          </form>
+          <aside class="summary-card">
+            <p class="eyebrow">Cart summary</p>
+            <div data-checkout-summary>${renderLoadingState('Loading summary')}</div>
+          </aside>
+        </section>
+      </main>
+      ${renderFooter(content)}
+    `,
+    scripts: ['/app.js']
+  })
+}
+
+export function renderInvoice(content, order) {
+  const title = order ? `Invoice ${order.invoiceId}` : 'Invoice not found'
+  return renderDocument({
+    title: `${title} | ${content.site.brand}`,
+    description: 'MAISON RAVA mock invoice page.',
+    body: `
+      <a class="skip-link" href="#main">Lewati ke konten</a>
+      ${renderHeader(content)}
+      <main id="main">
+        <section class="section invoice-page">
+          ${order ? renderInvoiceCard(order) : renderEmptyState('Invoice not found.', 'Use order status with invoice ID and email.', '/order-status')}
+        </section>
+      </main>
+      ${renderFooter(content)}
+    `
+  })
+}
+
+export function renderOrderStatus(content) {
+  return renderDocument({
+    title: `Order Status | ${content.site.brand}`,
+    description: 'Check MAISON RAVA mock invoice status.',
+    body: `
+      <a class="skip-link" href="#main">Lewati ke konten</a>
+      ${renderHeader(content)}
+      <main id="main">
+        ${renderPageHero('Order Status', 'Check invoice status with order ID and email.', content.site.heroImage, content.site.heroAlt, 'Client care')}
+        <section class="section checkout-layout">
+          <form class="checkout-form" data-order-status-form>
+            ${formField('orderId', 'Invoice ID', 'text', 'RAVA-20260120-ABC123')}
+            ${formField('email', 'Email', 'email', 'client@example.com')}
+            <button class="button primary" type="submit">Check status</button>
+          </form>
+          <aside class="summary-card" data-order-status-result>${renderEmptyState('No invoice loaded.', 'Submit an invoice ID to see the current status.')}</aside>
+        </section>
+      </main>
+      ${renderFooter(content)}
+    `,
+    scripts: ['/app.js']
+  })
+}
+
+export function renderMaison(content) {
+  return renderDocument({
+    title: `Maison | ${content.site.brand}`,
+    description: 'The fictional MAISON RAVA story, atelier system, craft manifesto, and private room.',
+    ogImage: content.site.heroImage,
+    body: `
+      <a class="skip-link" href="#main">Lewati ke konten</a>
+      ${renderHeader(content)}
+      <main id="main">
+        ${renderPageHero('Maison', 'A fictional couture system for surreal commerce and precise editorial rhythm.', content.site.heroImage, content.site.heroAlt, 'Manifesto')}
+        ${renderMaisonSection(content)}
+        ${renderCodeSection(content)}
+        ${renderAtelierSection(content)}
+        ${renderAppointment(content)}
+      </main>
+      ${renderFooter(content)}
+    `
+  })
+}
+
+export function renderSearch(content, query = '') {
+  const q = String(query || '').trim().toLowerCase()
+  const products = q ? content.products.filter((item) => searchText(item).includes(q)).slice(0, 12) : []
+  const collections = q ? content.collections.filter((item) => searchText(item).includes(q)).slice(0, 8) : []
+  const editorials = q ? content.editorials.filter((item) => searchText(item).includes(q)).slice(0, 8) : []
+
+  return renderDocument({
+    title: `Search | ${content.site.brand}`,
+    description: 'Search products, collections, and editorials from MAISON RAVA.',
+    body: `
+      <a class="skip-link" href="#main">Lewati ke konten</a>
+      ${renderHeader(content)}
+      <main id="main">
+        <section class="section search-page">
+          <p class="eyebrow">Search</p>
+          <h1>Find a house signal.</h1>
+          <form action="/search" method="get" class="search-hero-form">
+            <input type="search" name="q" value="${attr(query)}" placeholder="coat, aperture, invoice" autofocus>
+            <button class="button primary" type="submit">Search</button>
+          </form>
+          ${q ? `<p class="muted">Results for "${escapeHtml(query)}"</p>` : ''}
+        </section>
+        <section class="section">
+          <div class="section-heading"><p class="eyebrow">Products</p><h2>${products.length} pieces</h2></div>
+          ${products.length ? `<div class="product-grid">${products.map(renderProductCard).join('')}</div>` : renderEmptyState('No product results.', 'Try another term.')}
+        </section>
+        <section class="section">
+          <div class="section-heading"><p class="eyebrow">Collections</p><h2>${collections.length} chapters</h2></div>
+          ${collections.length ? `<div class="collection-grid">${collections.map(renderCollectionCard).join('')}</div>` : renderEmptyState('No collection results.', 'Try another term.')}
+        </section>
+        <section class="section">
+          <div class="section-heading"><p class="eyebrow">Editorial</p><h2>${editorials.length} notes</h2></div>
+          ${editorials.length ? `<div class="journal-list">${editorials.map(renderEditorialCard).join('')}</div>` : renderEmptyState('No editorial results.', 'Try another term.')}
         </section>
       </main>
       ${renderFooter(content)}
@@ -219,13 +489,13 @@ export function renderBoutiques(content) {
 
 export function renderLogin(message = '') {
   return renderDocument({
-    title: 'Admin Login | VAEL Atelier',
-    description: 'Login admin VAEL Atelier.',
+    title: 'Admin Login | MAISON RAVA',
+    description: 'Login admin MAISON RAVA.',
     body: `
       <main class="admin-shell narrow">
         <section class="admin-card">
           <p class="eyebrow">Admin</p>
-          <h1>VAEL Studio</h1>
+          <h1>MAISON RAVA Studio</h1>
           <p class="muted">Masuk untuk mengatur konten, produk, collection, journal, boutiques, dan media library.</p>
           ${message ? `<p class="notice error">${escapeHtml(message)}</p>` : ''}
           <form method="post" action="/admin/login" class="admin-form">
@@ -241,10 +511,51 @@ export function renderLogin(message = '') {
 }
 
 export function renderAdmin(content, csrfToken, message = '') {
+  return renderDocument({
+    title: 'Admin CMS | MAISON RAVA',
+    description: 'Token-protected MAISON RAVA CMS console.',
+    body: `
+      <main class="admin-app" data-admin-app>
+        <section class="admin-login-panel" data-admin-login>
+          <p class="eyebrow">Admin CMS</p>
+          <h1>MAISON RAVA Studio</h1>
+          <p class="muted">Masuk dengan ADMIN_TOKEN dari environment server. Token disimpan di localStorage untuk prototype ini.</p>
+          <form class="admin-token-form" data-admin-login-form>
+            <label>Admin token<input type="password" name="token" autocomplete="current-password" required></label>
+            <button class="button primary" type="submit">Login</button>
+            <p class="form-message" data-admin-login-message>${escapeHtml(message)}</p>
+          </form>
+        </section>
+        <section class="admin-console" data-admin-console hidden>
+          <header class="admin-topbar">
+            <div>
+              <p class="eyebrow">Studio</p>
+              <h1>Content, commerce, and orders</h1>
+            </div>
+            <nav>
+              <a class="button secondary dark" href="/">View site</a>
+              <button class="button primary" type="button" data-admin-logout>Logout</button>
+            </nav>
+          </header>
+          <div class="admin-tabs" role="tablist">
+            <button type="button" data-admin-tab="dashboard" aria-pressed="true">Dashboard</button>
+            <button type="button" data-admin-tab="products">Products</button>
+            <button type="button" data-admin-tab="collections">Collections</button>
+            <button type="button" data-admin-tab="editorials">Editorials</button>
+            <button type="button" data-admin-tab="orders">Orders</button>
+            <button type="button" data-admin-tab="settings">Settings</button>
+          </div>
+          <div class="admin-panel" data-admin-panel>${renderLoadingState('Loading admin data')}</div>
+        </section>
+      </main>
+    `,
+    scripts: ['/app.js']
+  })
+
   const csrf = csrfInput(csrfToken)
   return renderDocument({
-    title: 'Admin Studio | VAEL Atelier',
-    description: 'Admin studio VAEL Atelier.',
+    title: 'Admin Studio | MAISON RAVA',
+    description: 'Admin studio MAISON RAVA.',
     body: `
       <main class="admin-shell">
         <header class="admin-topbar">
@@ -366,7 +677,7 @@ export function renderAdmin(content, csrfToken, message = '') {
 
 export function renderNotFound(content) {
   return renderDocument({
-    title: '404 | VAEL Atelier',
+    title: '404 | MAISON RAVA',
     description: 'Halaman tidak ditemukan.',
     body: `
       <main class="admin-shell narrow">
@@ -453,7 +764,7 @@ function renderShopSection(content, products) {
           <p class="eyebrow">Shop</p>
           <h2 id="shop-title">Minimal catalog, maximal signal.</h2>
         </div>
-        <a class="text-link" href="/collections">Available online and by appointment</a>
+        <a class="text-link" href="/shop">Open full shop</a>
       </div>
       <div class="shop-tools" aria-label="Filter produk">
         <div class="category-row" role="list">
@@ -479,12 +790,12 @@ function renderShopSection(content, products) {
 function renderProductCard(item) {
   return `
     <article class="product-card" data-category="${attr(item.category.toLowerCase())}" data-title="${attr(`${item.title} ${item.line} ${item.description}`.toLowerCase())}">
-      <a href="/products/${attr(item.slug)}" aria-label="Lihat ${attr(item.title)}">
+      <a href="/shop/${attr(item.slug)}" aria-label="Lihat ${attr(item.title)}">
         <img class="mono-media" src="${attr(item.images[0])}" width="640" height="720" loading="lazy" decoding="async" alt="${attr(item.alt)}">
       </a>
       <div class="product-meta">
         <p>${escapeHtml(item.line)}</p>
-        <h3><a href="/products/${attr(item.slug)}">${escapeHtml(item.title)}</a></h3>
+        <h3><a href="/shop/${attr(item.slug)}">${escapeHtml(item.title)}</a></h3>
         <span>${escapeHtml(item.price)}</span>
         <small>${escapeHtml(item.status)}</small>
       </div>
@@ -517,7 +828,7 @@ function renderMaisonSection(content) {
           <p class="eyebrow">Maison</p>
           <h2 id="maison-title">A strong craft and vision.</h2>
         </div>
-        <p>VAEL is a fictional maison for this project: editorial enough to feel rare, operational enough to run inside a small container, and clear enough for a client to shop without friction.</p>
+        <p>MAISON RAVA is a fictional maison for this project: editorial enough to feel rare, operational enough to run inside a small container, and clear enough for a client to shop without friction.</p>
       </div>
       <div class="timeline" aria-label="Timeline maison">
         ${content.timeline.map((item) => `
@@ -547,23 +858,27 @@ function renderAtelierSection(content) {
   `
 }
 
-function renderJournalPreview(items) {
+function renderEditorialPreview(items) {
   return `
-    <section id="journal" class="section journal" aria-labelledby="journal-title">
+    <section id="editorial" class="section journal" aria-labelledby="journal-title">
       <div class="section-heading">
-        <p class="eyebrow">Journal</p>
+        <p class="eyebrow">Editorial</p>
         <h2 id="journal-title">Quiet releases, clear signals.</h2>
-        <a class="text-link" href="/journal">All journal</a>
+        <a class="text-link" href="/editorial">All editorial</a>
       </div>
-      <div class="journal-list">${items.map(renderJournalCard).join('')}</div>
+      <div class="journal-list">${items.map(renderEditorialCard).join('')}</div>
     </section>
   `
 }
 
-function renderJournalCard(item) {
+function renderJournalPreview(items) {
+  return renderEditorialPreview(items)
+}
+
+function renderEditorialCard(item) {
   return `
     <article>
-      <a href="/journal/${attr(item.slug)}">
+      <a href="/editorial/${attr(item.slug)}">
         <img class="mono-media" src="${attr(item.image)}" width="640" height="420" loading="lazy" decoding="async" alt="${attr(item.alt)}">
         <p>${escapeHtml(item.type)}</p>
         <h3>${escapeHtml(item.title)}</h3>
@@ -571,6 +886,10 @@ function renderJournalCard(item) {
       </a>
     </article>
   `
+}
+
+function renderJournalCard(item) {
+  return renderEditorialCard(item)
 }
 
 function renderAppointment(content) {
@@ -623,7 +942,11 @@ function renderNewsletter(content) {
         <h2 id="newsletter-title">${escapeHtml(content.newsletter.title)}</h2>
         <p>${escapeHtml(content.newsletter.text)}</p>
       </div>
-      <a class="button primary" href="mailto:${attr(content.newsletter.email)}?subject=${attr(encodeURIComponent(content.newsletter.subject))}">${escapeHtml(content.newsletter.label)}</a>
+      <form class="newsletter-form" data-newsletter-form>
+        <input type="email" name="email" placeholder="client@example.com" aria-label="Email" required>
+        <button class="button primary" type="submit">${escapeHtml(content.newsletter.label)}</button>
+        <p class="form-message" data-newsletter-message></p>
+      </form>
     </section>
   `
 }
@@ -773,6 +1096,86 @@ function formActions(isNew, addLabel, saveLabel, deleteAction) {
   `
 }
 
+function featuredBySlug(items = [], slugs = [], limit = 4) {
+  const picked = Array.isArray(slugs)
+    ? slugs.map((slug) => findBySlug(items, slug)).filter(Boolean)
+    : []
+  const rest = items.filter((item) => !picked.some((pickedItem) => pickedItem.slug === item.slug))
+  return [...picked, ...rest].slice(0, limit)
+}
+
+function filterProducts(products = [], query = {}) {
+  const q = String(query.q || '').trim().toLowerCase()
+  const category = String(query.category || 'all').trim().toLowerCase()
+  const collection = String(query.collection || '').trim().toLowerCase()
+  const min = Number(query.min || 0)
+  const max = Number(query.max || Number.MAX_SAFE_INTEGER)
+  const sort = String(query.sort || 'newest')
+
+  return products
+    .filter((product) => category === 'all' || !category || product.category.toLowerCase() === category)
+    .filter((product) => !collection || product.collectionSlug.toLowerCase() === collection)
+    .filter((product) => !q || searchText(product).includes(q))
+    .filter((product) => Number(product.priceValue || 0) >= min && Number(product.priceValue || 0) <= max)
+    .sort((a, b) => {
+      if (sort === 'price-low') return Number(a.priceValue || 0) - Number(b.priceValue || 0) || a.title.localeCompare(b.title)
+      if (sort === 'price-high') return Number(b.priceValue || 0) - Number(a.priceValue || 0) || a.title.localeCompare(b.title)
+      return String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || a.title.localeCompare(b.title)
+    })
+}
+
+function renderEmptyState(title, text, href = '') {
+  return `
+    <div class="empty-state">
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(text)}</p>
+      ${href ? `<a class="button secondary dark" href="${attr(href)}">Continue</a>` : ''}
+    </div>
+  `
+}
+
+function renderLoadingState(label) {
+  return `<div class="loading-state"><span></span><p>${escapeHtml(label)}</p></div>`
+}
+
+function formField(name, label, type, placeholder) {
+  return `<label>${escapeHtml(label)}<input name="${attr(name)}" type="${attr(type)}" placeholder="${attr(placeholder)}" required></label>`
+}
+
+function renderInvoiceCard(order) {
+  const totals = order.totals || {}
+  return `
+    <article class="invoice-card">
+      <p class="eyebrow">Invoice</p>
+      <h1>${escapeHtml(order.invoiceId || order.id)}</h1>
+      <p class="status-line">Status: <strong>${escapeHtml(order.status || 'pending')}</strong></p>
+      <dl class="spec-list">
+        <div><dt>Email</dt><dd>${escapeHtml(order.email || order.customer?.email || '')}</dd></div>
+        <div><dt>Payment</dt><dd>${escapeHtml(order.paymentMethod || '')}</dd></div>
+        <div><dt>Total</dt><dd>${escapeHtml(formatMoney(totals.total || 0, totals.currency || 'EUR'))}</dd></div>
+      </dl>
+      <div class="invoice-items">
+        ${(order.items || []).map((item) => `
+          <div>
+            <span>${escapeHtml(item.title)}</span>
+            <small>${escapeHtml(item.quantity)} x ${escapeHtml(formatMoney(item.unitPrice || 0, totals.currency || 'EUR'))}</small>
+          </div>
+        `).join('')}
+      </div>
+      <div class="payment-methods">
+        <span>QRIS</span>
+        <span>Bank Transfer</span>
+        <span>E-Wallet</span>
+      </div>
+      <a class="button primary" href="/order-status">Check status</a>
+    </article>
+  `
+}
+
+function formatMoney(value, currency = 'EUR') {
+  return `${currency} ${Number(value || 0).toLocaleString('en-US')}`
+}
+
 function renderDocument({ title, description, body, scripts = [], ogImage = '/assets/hero-atelier.jpg' }) {
   return `<!doctype html>
 <html lang="id">
@@ -791,7 +1194,7 @@ function renderDocument({ title, description, body, scripts = [], ogImage = '/as
     <link rel="preload" as="image" href="${attr(ogImage)}" fetchpriority="high">
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body data-template="monochrome-maison">
+    <body data-template="${attr(templateProfile.id)}">
     ${body}
     ${scripts.map((src) => `<script src="${attr(src)}" defer></script>`).join('')}
   </body>
@@ -801,10 +1204,10 @@ function renderDocument({ title, description, body, scripts = [], ogImage = '/as
 function renderHeader(content) {
   const nav = [
     ['Collections', '/collections'],
-    ['Shop', '/#shop'],
-    ['Journal', '/journal'],
-    ['Maison', '/#maison'],
-    ['Boutiques', '/boutiques']
+    ['Shop', '/shop'],
+    ['Editorial', '/editorial'],
+    ['Maison', '/maison'],
+    ['Search', '/search']
   ]
 
   return `
@@ -814,7 +1217,7 @@ function renderHeader(content) {
         <span>${escapeHtml(content.site.brand)}</span>
       </a>
       <nav class="desktop-nav" aria-label="Menu utama">${nav.map(([label, href]) => `<a href="${attr(href)}">${escapeHtml(label)}</a>`).join('')}</nav>
-      <a class="header-cta" href="/#appointment">Appointment</a>
+      <a class="header-cta" href="/cart">Cart</a>
     </header>
   `
 }
@@ -825,8 +1228,10 @@ function renderFooter(content) {
       <p>${escapeHtml(content.site.brand)}</p>
       <nav aria-label="Footer">
         <a href="/collections">Collections</a>
-        <a href="/journal">Journal</a>
-        <a href="/boutiques">Boutiques</a>
+        <a href="/shop">Shop</a>
+        <a href="/editorial">Editorial</a>
+        <a href="/maison">Maison</a>
+        <a href="/order-status">Order status</a>
         <a href="/admin">Admin</a>
         <a href="/api/health">Health</a>
       </nav>
@@ -875,7 +1280,7 @@ function inquiryHref(content, subject) {
 
 function whatsappHref(content, subject) {
   const raw = String(content.site.whatsapp || '').trim()
-  const text = encodeURIComponent(`Halo, saya ingin inquiry VAEL Atelier: ${subject}`)
+  const text = encodeURIComponent(`Halo, saya ingin inquiry MAISON RAVA: ${subject}`)
   if (raw.startsWith('http://') || raw.startsWith('https://')) return `${raw}${raw.includes('?') ? '&' : '?'}text=${text}`
   const phone = raw.replace(/[^0-9]/g, '')
   return `https://wa.me/${phone}?text=${text}`
@@ -883,6 +1288,13 @@ function whatsappHref(content, subject) {
 
 function findBySlug(items, slug) {
   return items.find((item) => item.slug === slug || item.id === slug)
+}
+
+function searchText(item) {
+  return Object.values(item)
+    .filter((value) => typeof value === 'string' || typeof value === 'number')
+    .join(' ')
+    .toLowerCase()
 }
 
 function specsToText(specs = []) {

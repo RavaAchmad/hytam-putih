@@ -1,13 +1,35 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
-import { basename, extname, join, resolve } from 'node:path'
+import { copyFile, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { basename, dirname, extname, join, resolve } from 'node:path'
 import { customAlphabet } from 'nanoid'
 import { validateContent } from './content-schema.js'
+import {
+  defaultContent,
+  seedCollections,
+  seedEditorials,
+  seedHomepage,
+  seedOrders,
+  seedProducts,
+  seedSite,
+  seedSubscribers
+} from './seed-data.js'
 
 const shortId = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 8)
+const defaultDataDir = existsSync('/home/container') ? '/home/container/data' : './data'
 
-export const dataDir = resolve(process.env.DATA_DIR || './data')
+export const dataDir = resolve(process.env.DATA_DIR || defaultDataDir)
 export const uploadDir = join(dataDir, 'uploads')
+
+export const storeFiles = {
+  site: join(dataDir, 'site.json'),
+  products: join(dataDir, 'products.json'),
+  collections: join(dataDir, 'collections.json'),
+  editorials: join(dataDir, 'editorials.json'),
+  orders: join(dataDir, 'orders.json'),
+  subscribers: join(dataDir, 'subscribers.json'),
+  homepage: join(dataDir, 'homepage.json')
+}
+
 export const contentPath = join(dataDir, 'content.json')
 
 const imageTypes = new Map([
@@ -17,287 +39,94 @@ const imageTypes = new Map([
   ['image/gif', '.gif']
 ])
 
-export const defaultContent = {
-  site: {
-    brand: 'VAEL Atelier',
-    mark: 'V',
-    description: 'Maison digital hitam-putih untuk ready-to-wear sculptural, object jewelry, leather goods, journal, dan private fitting.',
-    theme: 'Monochrome luxury editorial',
-    heroEyebrow: 'Private edit 2026',
-    heroTitle: 'VAEL Atelier',
-    heroText: 'A monochrome maison for sculptural garments, object jewelry, precise leather goods, and fittings by appointment.',
-    heroImage: '/assets/hero-atelier.jpg',
-    heroAlt: 'Editorial still life busana hitam, aksesori, dan tas couture di dalam ruang atelier.',
-    primaryCta: 'Shop the edit',
-    secondaryCta: 'View collections',
-    whatsapp: process.env.CONTACT_WHATSAPP || ''
-  },
-  quickStrip: ['Ready-to-wear', 'Object jewelry', 'Private showroom', 'Image studio'],
-  campaigns: [
-    {
-      slug: 'the-sculpted-line',
-      number: '01',
-      title: 'The Sculpted Line',
-      text: 'Tailoring with a defined shoulder, narrow waist, and controlled volume.',
-      image: '/assets/look-coat.jpg',
-      alt: 'Mantel hitam dengan siluet bahu tegas.'
-    },
-    {
-      slug: 'the-object-salon',
-      number: '02',
-      title: 'The Object Salon',
-      text: 'Jewelry and hardware treated as small wearable sculptures.',
-      image: '/assets/orbit-earcuff.jpg',
-      alt: 'Aksesori telinga berbentuk orbit.'
-    },
-    {
-      slug: 'the-private-room',
-      number: '03',
-      title: 'The Private Room',
-      text: 'Appointment-only fitting notes, made-to-order sizing, and client care.',
-      image: '/assets/bag-keyline.jpg',
-      alt: 'Tas kulit dengan gagang geometris.'
-    }
-  ],
-  categories: ['All', 'Evening', 'Jackets', 'Bags', 'Jewelry', 'Shoes'],
-  collections: [
-    {
-      slug: 'private-edit-2026',
-      title: 'Private Edit 2026',
-      season: 'Spring private edit',
-      intro: 'A spare black-and-white wardrobe built around one repeated aperture code.',
-      coverImage: '/assets/hero-atelier.jpg',
-      coverAlt: 'Campaign still life hitam putih VAEL Atelier.',
-      productSlugs: ['noir-sculpted-coat', 'keyline-bag', 'orbit-ear-cuff', 'column-heel'],
-      sections: [
-        {
-          title: 'A silhouette first',
-          text: 'The line starts with shoulder, waist, and negative space before it becomes product.',
-          image: '/assets/look-coat.jpg',
-          alt: 'Mantel sculptural sebagai pembuka koleksi.'
-        },
-        {
-          title: 'Objects worn close',
-          text: 'Bags, cuffs, and heels carry the same oval gesture across the body.',
-          image: '/assets/orbit-earcuff.jpg',
-          alt: 'Detail object jewelry koleksi.'
-        }
-      ]
-    },
-    {
-      slug: 'aperture-objects',
-      title: 'Aperture Objects',
-      season: 'Object jewelry and leather goods',
-      intro: 'Small objects with strong silhouettes: bags, cuffs, and hardware-led accessories.',
-      coverImage: '/assets/bag-keyline.jpg',
-      coverAlt: 'Tas monochrome dengan gagang geometris.',
-      productSlugs: ['keyline-bag', 'orbit-ear-cuff'],
-      sections: [
-        {
-          title: 'Hardware as punctuation',
-          text: 'Every clasp and opening is treated as a visible mark, not a hidden mechanism.',
-          image: '/assets/bag-keyline.jpg',
-          alt: 'Leather goods dengan hardware tegas.'
-        }
-      ]
-    }
-  ],
-  products: [
-    {
-      slug: 'noir-sculpted-coat',
-      title: 'Noir Sculpted Coat',
-      category: 'Jackets',
-      collectionSlug: 'private-edit-2026',
-      line: 'Ready-to-wear',
-      description: 'Wool silk coat with structured waist, sharp shoulder, satin lining, and a quiet architectural profile.',
-      price: 'EUR 2,850',
-      status: 'Available by appointment',
-      images: ['/assets/look-coat.jpg', '/assets/hero-atelier.jpg'],
-      alt: 'Mantel hitam dengan siluet bahu tegas.',
-      specs: [
-        { label: 'Material', value: 'Wool silk blend' },
-        { label: 'Fit', value: 'Structured waist' },
-        { label: 'Service', value: 'Private fitting available' }
-      ],
-      relatedSlugs: ['keyline-bag', 'column-heel']
-    },
-    {
-      slug: 'keyline-bag',
-      title: 'Keyline Bag',
-      category: 'Bags',
-      collectionSlug: 'aperture-objects',
-      line: 'Leather goods',
-      description: 'Calf leather bag with monochrome body, architectural handle, and aperture-inspired hardware.',
-      price: 'EUR 1,420',
-      status: 'Online preview',
-      images: ['/assets/bag-keyline.jpg', '/assets/hero-atelier.jpg'],
-      alt: 'Tas tangan dengan gagang geometris.',
-      specs: [
-        { label: 'Material', value: 'Calf leather' },
-        { label: 'Hardware', value: 'Polished monochrome handle' },
-        { label: 'Carry', value: 'Top handle' }
-      ],
-      relatedSlugs: ['orbit-ear-cuff', 'noir-sculpted-coat']
-    },
-    {
-      slug: 'orbit-ear-cuff',
-      title: 'Orbit Ear Cuff',
-      category: 'Jewelry',
-      collectionSlug: 'aperture-objects',
-      line: 'Object jewelry',
-      description: 'Polished sculptural cuff built around oval negative space and a clean monochrome finish.',
-      price: 'EUR 390',
-      status: 'Limited stock',
-      images: ['/assets/orbit-earcuff.jpg'],
-      alt: 'Ear cuff berbentuk orbit.',
-      specs: [
-        { label: 'Finish', value: 'Polished metal' },
-        { label: 'Motif', value: 'Aperture oval' },
-        { label: 'Wear', value: 'Single ear cuff' }
-      ],
-      relatedSlugs: ['keyline-bag', 'column-heel']
-    },
-    {
-      slug: 'column-heel',
-      title: 'Column Heel',
-      category: 'Shoes',
-      collectionSlug: 'private-edit-2026',
-      line: 'Shoes',
-      description: 'Satin upper, column heel, sculpted profile, and a restrained evening silhouette.',
-      price: 'EUR 780',
-      status: 'Made to order',
-      images: ['/assets/column-heel.jpg'],
-      alt: 'Sepatu hak hitam dengan detail kolom.',
-      specs: [
-        { label: 'Upper', value: 'Satin' },
-        { label: 'Heel', value: 'Column profile' },
-        { label: 'Order', value: 'Made to order' }
-      ],
-      relatedSlugs: ['noir-sculpted-coat', 'orbit-ear-cuff']
-    }
-  ],
-  code: {
-    eyebrow: 'Iconic code',
-    title: 'The Aperture',
-    text: 'The Aperture is VAEL\'s recurring house mark: an open oval cut through closures, buttons, bag handles, jewelry, and embroidery.',
-    image: '/assets/orbit-earcuff.jpg',
-    alt: 'Detail oval sebagai kode visual VAEL Atelier.'
-  },
-  timeline: [
-    { id: 'first-fitting-room', year: '2019', title: 'First fitting room', text: 'The house begins with private alterations, pattern notes, and a narrow catalog of structured black garments.' },
-    { id: 'object-jewelry', year: '2021', title: 'Object jewelry', text: 'Hardware becomes the signature: oval cuffs, column heels, and small sculptural details.' },
-    { id: 'digital-salon', year: '2024', title: 'Digital salon', text: 'The showroom moves online with appointment-first service, measured product copy, and a fast storefront.' },
-    { id: 'private-edit', year: '2026', title: 'Private edit', text: 'A tighter seasonal story connects ready-to-wear, leather goods, jewelry, and shoes under one code.' }
-  ],
-  metrics: [
-    { value: '0', label: 'Third-party render request' },
-    { value: '< 70KB', label: 'Client CSS and scripts kept lean' },
-    { value: '1', label: 'Node process for Pterodactyl' }
-  ],
-  journal: [
-    {
-      slug: 'runway-note',
-      type: 'Runway note',
-      title: 'Sharp shoulders, soft movement, and one object of light.',
-      summary: 'A study in monochrome proportion and wearable object detail.',
-      body: 'The season is edited around a simple tension: strong shoulder lines, quiet negative space, and accessories that behave like small objects of architecture.',
-      image: '/assets/look-coat.jpg',
-      alt: 'Runway note dengan mantel bersiluet tegas.'
-    },
-    {
-      slug: 'client-service',
-      type: 'Client service',
-      title: 'Private appointments now route through the same fast server.',
-      summary: 'A lean editorial storefront with room for CRM integration later.',
-      body: 'The first public release keeps inquiry simple. Buyers can move from product, collection, or appointment to direct email or WhatsApp without storing personal data on the server.',
-      image: '/assets/bag-keyline.jpg',
-      alt: 'Tas tangan sebagai simbol client service.'
-    },
-    {
-      slug: 'craft-note',
-      type: 'Craft note',
-      title: 'Why one repeated code makes a collection easier to remember.',
-      summary: 'The Aperture acts as a memory device across product, page, and service.',
-      body: 'A repeated mark gives buyers and stylists a way to recognize the house quickly: an oval, a cutout, an opening, a closure that becomes visible.',
-      image: '/assets/orbit-earcuff.jpg',
-      alt: 'Kode visual berbentuk oval.'
-    }
-  ],
-  boutiques: [
-    {
-      slug: 'jakarta',
-      city: 'Jakarta',
-      title: 'Senopati Showroom',
-      address: 'Jl. Senopati 88',
-      hours: 'Monday to Saturday, 11.00-19.00',
-      email: 'atelier@example.com',
-      image: '/assets/hero-atelier.jpg',
-      alt: 'Ruang showroom privat.'
-    },
-    {
-      slug: 'bali',
-      city: 'Bali',
-      title: 'Resort Trunk Salon',
-      address: 'Nusa Dua private residency',
-      hours: 'Friday to Sunday, appointment only',
-      email: 'salon@example.com',
-      image: '/assets/bag-keyline.jpg',
-      alt: 'Trunk salon dengan leather goods.'
-    },
-    {
-      slug: 'singapore',
-      city: 'Singapore',
-      title: 'Client Suite',
-      address: 'Orchard appointment desk',
-      hours: 'Monthly trunk presentation',
-      email: 'clientcare@example.com',
-      image: '/assets/orbit-earcuff.jpg',
-      alt: 'Client suite dengan aksesori sculptural.'
-    }
-  ],
-  appointment: {
-    eyebrow: 'Appointment',
-    title: 'Reserve a private fitting.',
-    text: 'For sizing, made-to-order notes, bridal evening pieces, showroom pickup, or image-led styling previews.',
-    email: 'atelier@example.com',
-    subject: 'Private fitting request',
-    label: 'Request slot'
-  },
-  newsletter: {
-    eyebrow: 'Stay informed',
-    title: 'New edits, private viewings, and salon notes.',
-    text: 'A quiet mailing list for collection releases and appointment windows.',
-    email: 'atelier@example.com',
-    subject: 'Newsletter request',
-    label: 'Subscribe'
-  },
-  media: [
-    { id: 'hero-atelier', src: '/assets/hero-atelier.jpg', alt: 'Hero atelier image', builtin: true },
-    { id: 'look-coat', src: '/assets/look-coat.jpg', alt: 'Sculpted coat image', builtin: true },
-    { id: 'bag-keyline', src: '/assets/bag-keyline.jpg', alt: 'Keyline bag image', builtin: true },
-    { id: 'orbit-earcuff', src: '/assets/orbit-earcuff.jpg', alt: 'Orbit ear cuff image', builtin: true },
-    { id: 'column-heel', src: '/assets/column-heel.jpg', alt: 'Column heel image', builtin: true }
-  ]
+const seeds = {
+  site: seedSite,
+  products: seedProducts,
+  collections: seedCollections,
+  editorials: seedEditorials,
+  orders: seedOrders,
+  subscribers: seedSubscribers,
+  homepage: seedHomepage
 }
+
+export { defaultContent }
 
 export async function ensureStore() {
   await mkdir(uploadDir, { recursive: true })
-  if (!existsSync(contentPath)) {
-    await writeContent(defaultContent)
-  }
+  await Promise.all(Object.entries(storeFiles).map(async ([key, file]) => {
+    if (!existsSync(file)) {
+      await atomicWriteJson(file, seeds[key])
+    }
+  }))
 }
 
 export async function readContent() {
   await ensureStore()
-  const raw = await readFile(contentPath, 'utf8')
-  return validateContent(normalizeContent(JSON.parse(raw)))
+  const [site, products, collections, editorials, orders, subscribers, homepage] = await Promise.all([
+    readStoreFile('site'),
+    readStoreFile('products'),
+    readStoreFile('collections'),
+    readStoreFile('editorials'),
+    readStoreFile('orders'),
+    readStoreFile('subscribers'),
+    readStoreFile('homepage')
+  ])
+
+  return validateContent(normalizeContent({
+    site,
+    homepage,
+    products,
+    collections,
+    journal: editorials,
+    editorials,
+    orders,
+    subscribers
+  }))
 }
 
 export async function writeContent(content) {
-  await mkdir(dataDir, { recursive: true })
+  await ensureStore()
   const normalized = validateContent(normalizeContent(content))
-  await writeFile(contentPath, `${JSON.stringify(normalized, null, 2)}\n`, 'utf8')
+  const site = {
+    ...normalized.site,
+    categories: normalized.categories,
+    quickStrip: normalized.quickStrip,
+    code: normalized.code,
+    timeline: normalized.timeline,
+    metrics: normalized.metrics,
+    boutiques: normalized.boutiques,
+    appointment: normalized.appointment,
+    newsletter: normalized.newsletter,
+    media: normalized.media
+  }
+  const homepage = {
+    ...normalized.homepage,
+    campaigns: normalized.campaigns
+  }
+
+  await Promise.all([
+    atomicWriteJson(storeFiles.site, site),
+    atomicWriteJson(storeFiles.products, normalized.products),
+    atomicWriteJson(storeFiles.collections, normalized.collections),
+    atomicWriteJson(storeFiles.editorials, normalized.editorials || normalized.journal),
+    atomicWriteJson(storeFiles.orders, normalized.orders || []),
+    atomicWriteJson(storeFiles.subscribers, normalized.subscribers || []),
+    atomicWriteJson(storeFiles.homepage, homepage)
+  ])
+
   return normalized
+}
+
+export async function readStoreFile(key) {
+  await ensureStore()
+  return readJsonSafe(storeFiles[key], seeds[key])
+}
+
+export async function writeStoreFile(key, value) {
+  if (!storeFiles[key]) throw new Error(`Unknown store file: ${key}`)
+  await ensureStore()
+  await atomicWriteJson(storeFiles[key], value)
+  return value
 }
 
 export async function saveUploadedImage(file, alt = '') {
@@ -336,6 +165,7 @@ export async function saveUploadedImage(file, alt = '') {
 }
 
 export async function readUploadedImage(filename) {
+  await ensureStore()
   const safeName = basename(filename)
   const diskPath = join(uploadDir, safeName)
   const info = await stat(diskPath)
@@ -370,27 +200,71 @@ export function newId(prefix) {
   return `${slugify(prefix)}-${shortId()}`
 }
 
+async function readJsonSafe(file, fallback) {
+  try {
+    return JSON.parse(await readFile(file, 'utf8'))
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      await atomicWriteJson(file, fallback)
+      return structuredClone(fallback)
+    }
+
+    const raw = await readFile(file, 'utf8').catch(() => '')
+    if (raw) {
+      await writeFile(`${file}.corrupt-${Date.now()}`, raw, 'utf8').catch(() => {})
+    }
+    await atomicWriteJson(file, fallback)
+    return structuredClone(fallback)
+  }
+}
+
+async function atomicWriteJson(file, value) {
+  await mkdir(dirname(file), { recursive: true })
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`
+  const body = `${JSON.stringify(value, null, 2)}\n`
+  if (existsSync(file)) {
+    await copyFile(file, `${file}.bak`).catch(() => {})
+  }
+  await writeFile(tmp, body, 'utf8')
+  await rename(tmp, file)
+}
+
 function normalizeContent(content = {}) {
+  const siteInput = content.site || {}
+  const homepageInput = content.homepage || {}
+  const site = {
+    ...seedSite,
+    ...siteInput
+  }
+  const homepage = {
+    ...seedHomepage,
+    ...homepageInput,
+    campaigns: arrayOr(homepageInput.campaigns || content.campaigns, seedHomepage.campaigns).map(normalizeCampaign)
+  }
+
   const merged = {
     ...defaultContent,
     ...content,
-    site: { ...defaultContent.site, ...(content.site || {}) },
-    code: { ...defaultContent.code, ...(content.code || {}) },
-    appointment: { ...defaultContent.appointment, ...(content.appointment || {}) },
-    newsletter: { ...defaultContent.newsletter, ...(content.newsletter || {}) }
+    site,
+    homepage,
+    quickStrip: arrayOr(content.quickStrip || site.quickStrip, seedSite.quickStrip),
+    campaigns: homepage.campaigns,
+    categories: arrayOr(content.categories || site.categories, seedSite.categories),
+    collections: arrayOr(content.collections, seedCollections).map(normalizeCollection),
+    products: arrayOr(content.products, seedProducts).map(normalizeProduct),
+    code: { ...seedSite.code, ...(content.code || site.code || {}) },
+    timeline: arrayOr(content.timeline || site.timeline, seedSite.timeline),
+    metrics: arrayOr(content.metrics || site.metrics, seedSite.metrics),
+    journal: arrayOr(content.journal || content.editorials, seedEditorials).map(normalizeJournal),
+    boutiques: arrayOr(content.boutiques || site.boutiques, seedSite.boutiques).map(normalizeBoutique),
+    appointment: { ...seedSite.appointment, ...(content.appointment || site.appointment || {}) },
+    newsletter: { ...seedSite.newsletter, ...(content.newsletter || site.newsletter || {}) },
+    media: arrayOr(content.media || site.media, seedSite.media),
+    orders: arrayOr(content.orders, []),
+    subscribers: arrayOr(content.subscribers, [])
   }
 
-  merged.quickStrip = arrayOr(content.quickStrip, defaultContent.quickStrip)
-  merged.campaigns = arrayOr(content.campaigns || content.edits, defaultContent.campaigns).map(normalizeCampaign)
-  merged.categories = arrayOr(content.categories, defaultContent.categories)
-  merged.collections = arrayOr(content.collections, defaultContent.collections).map(normalizeCollection)
-  merged.products = arrayOr(content.products, defaultContent.products).map(normalizeProduct)
-  merged.timeline = arrayOr(content.timeline, defaultContent.timeline)
-  merged.metrics = arrayOr(content.metrics, defaultContent.metrics)
-  merged.journal = arrayOr(content.journal, defaultContent.journal).map(normalizeJournal)
-  merged.boutiques = arrayOr(content.boutiques, defaultContent.boutiques).map(normalizeBoutique)
-  merged.media = arrayOr(content.media, defaultContent.media)
-
+  merged.editorials = merged.journal
   return merged
 }
 
@@ -414,7 +288,8 @@ function normalizeCollection(item = {}) {
     id: slug,
     title: String(item.title || ''),
     season: String(item.season || ''),
-    intro: String(item.intro || ''),
+    intro: String(item.intro || item.description || ''),
+    description: String(item.description || item.intro || ''),
     coverImage: item.coverImage || item.image || '/assets/hero-atelier.jpg',
     coverAlt: String(item.coverAlt || item.alt || item.title || 'Collection image'),
     productSlugs: stringList(item.productSlugs),
@@ -430,6 +305,8 @@ function normalizeCollection(item = {}) {
 function normalizeProduct(item = {}) {
   const slug = item.slug || item.id || slugify(item.title)
   const images = stringList(item.images || item.image).filter(Boolean)
+  const priceValue = Number(item.priceValue || parsePrice(item.price))
+  const price = item.price || (Number.isFinite(priceValue) && priceValue > 0 ? `EUR ${priceValue.toLocaleString('en-US')}` : '')
   return {
     slug,
     id: slug,
@@ -438,16 +315,20 @@ function normalizeProduct(item = {}) {
     collectionSlug: String(item.collectionSlug || ''),
     line: String(item.line || ''),
     description: String(item.description || ''),
-    price: String(item.price || ''),
+    price,
+    priceValue: Number.isFinite(priceValue) ? priceValue : 0,
+    currency: item.currency || 'EUR',
     status: String(item.status || ''),
     images: images.length ? images : ['/assets/hero-atelier.jpg'],
     image: images[0] || item.image || '/assets/hero-atelier.jpg',
     alt: String(item.alt || item.title || 'Product image'),
+    sizes: stringList(item.sizes).length ? stringList(item.sizes) : ['XS', 'S', 'M', 'L'],
     specs: arrayOr(item.specs, []).map((spec) => ({
       label: String(spec.label || ''),
       value: String(spec.value || '')
     })).filter((spec) => spec.label || spec.value),
-    relatedSlugs: stringList(item.relatedSlugs)
+    relatedSlugs: stringList(item.relatedSlugs),
+    createdAt: item.createdAt || new Date().toISOString()
   }
 }
 
@@ -461,7 +342,8 @@ function normalizeJournal(item = {}) {
     summary: String(item.summary || ''),
     body: String(item.body || item.summary || ''),
     image: item.image || '/assets/hero-atelier.jpg',
-    alt: String(item.alt || item.title || 'Journal image')
+    alt: String(item.alt || item.title || 'Editorial image'),
+    publishedAt: item.publishedAt || new Date().toISOString()
   }
 }
 
@@ -480,8 +362,12 @@ function normalizeBoutique(item = {}) {
   }
 }
 
+function parsePrice(value = '') {
+  return Number(String(value).replace(/[^0-9.]/g, ''))
+}
+
 function arrayOr(value, fallback) {
-  return Array.isArray(value) ? value : fallback
+  return Array.isArray(value) ? value : structuredClone(fallback)
 }
 
 function stringList(value) {

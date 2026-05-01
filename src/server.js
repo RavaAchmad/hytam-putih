@@ -3,12 +3,15 @@ import { pathToFileURL } from 'node:url'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { compress } from 'hono/compress'
+import { cors } from 'hono/cors'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { etag } from 'hono/etag'
 import { secureHeaders } from 'hono/secure-headers'
 import { Hono } from 'hono'
+import { apiRoutes } from './api-routes.js'
 import {
   deleteUploadedImage,
+  dataDir,
   ensureStore,
   readContent,
   readUploadedImage,
@@ -19,24 +22,34 @@ import {
 import {
   renderAdmin,
   renderBoutiques,
+  renderCart,
+  renderCheckout,
   renderCollectionDetail,
   renderCollectionsIndex,
+  renderEditorialDetail,
+  renderEditorialIndex,
   renderHome,
+  renderInvoice,
   renderJournalDetail,
   renderJournalIndex,
   renderLogin,
+  renderMaison,
   renderNotFound,
-  renderProductDetail
+  renderOrderStatus,
+  renderProductDetail,
+  renderSearch,
+  renderShopIndex
 } from './render.js'
 
 export const app = new Hono()
 
 const port = Number(process.env.PORT || process.env.SERVER_PORT || 3000)
 const hostname = process.env.HOST || '0.0.0.0'
-const adminPassword = process.env.ADMIN_PASSWORD || 'change-this-password'
-const sessionSecret = process.env.ADMIN_SESSION_SECRET || adminPassword
+const adminToken = process.env.ADMIN_TOKEN || (isProduction ? '' : 'change-me-admin-token')
+const sessionSecret = process.env.ADMIN_SESSION_SECRET || adminToken || 'dev-session-secret'
 const sessionMaxAge = 60 * 60 * 24 * 7
 const isProduction = process.env.NODE_ENV === 'production'
+const publicApiOrigin = process.env.PUBLIC_API_ORIGIN || ''
 
 const csp = [
   "default-src 'self'",
@@ -53,8 +66,7 @@ const csp = [
 
 if (isProduction) {
   const missing = []
-  if (!process.env.ADMIN_PASSWORD || adminPassword === 'change-this-password') missing.push('ADMIN_PASSWORD')
-  if (!process.env.ADMIN_SESSION_SECRET) missing.push('ADMIN_SESSION_SECRET')
+  if (!process.env.ADMIN_TOKEN || adminToken === 'change-me-admin-token') missing.push('ADMIN_TOKEN')
   if (!process.env.DATA_DIR) missing.push('DATA_DIR')
   if (missing.length) {
     throw new Error(`Production env missing or unsafe: ${missing.join(', ')}`)
@@ -101,6 +113,18 @@ app.use('/site.webmanifest', async (c, next) => {
   c.header('Cache-Control', 'public, max-age=86400')
 })
 
+if (publicApiOrigin) {
+  app.use('/api/v1/*', cors({
+    origin: publicApiOrigin.split(',').map((origin) => origin.trim()).filter(Boolean),
+    allowMethods: ['GET', 'OPTIONS'],
+    allowHeaders: ['Content-Type'],
+    maxAge: 86400
+  }))
+}
+
+app.route('/api/v1', apiRoutes)
+app.route('/api', apiRoutes)
+
 app.get('/', async (c) => {
   const content = await readContent()
   c.header('Cache-Control', 'no-cache')
@@ -121,12 +145,77 @@ app.get('/collections/:slug', async (c) => {
   return c.html(renderCollectionDetail(content, collection))
 })
 
+app.get('/shop', async (c) => {
+  const content = await readContent()
+  c.header('Cache-Control', 'no-cache')
+  return c.html(renderShopIndex(content, c.req.query()))
+})
+
+app.get('/shop/:slug', async (c) => {
+  const content = await readContent()
+  const product = findBySlug(content.products, c.req.param('slug'))
+  c.header('Cache-Control', 'no-cache')
+  if (!product) return notFound(c, content)
+  return c.html(renderProductDetail(content, product))
+})
+
 app.get('/products/:slug', async (c) => {
   const content = await readContent()
   const product = findBySlug(content.products, c.req.param('slug'))
   c.header('Cache-Control', 'no-cache')
   if (!product) return notFound(c, content)
   return c.html(renderProductDetail(content, product))
+})
+
+app.get('/cart', async (c) => {
+  const content = await readContent()
+  c.header('Cache-Control', 'no-cache')
+  return c.html(renderCart(content))
+})
+
+app.get('/checkout', async (c) => {
+  const content = await readContent()
+  c.header('Cache-Control', 'no-cache')
+  return c.html(renderCheckout(content))
+})
+
+app.get('/invoice/:orderId', async (c) => {
+  const content = await readContent()
+  const order = content.orders.find((item) => item.invoiceId === c.req.param('orderId') || item.id === c.req.param('orderId'))
+  c.header('Cache-Control', 'no-store')
+  return c.html(renderInvoice(content, order))
+})
+
+app.get('/order-status', async (c) => {
+  const content = await readContent()
+  c.header('Cache-Control', 'no-cache')
+  return c.html(renderOrderStatus(content))
+})
+
+app.get('/maison', async (c) => {
+  const content = await readContent()
+  c.header('Cache-Control', 'no-cache')
+  return c.html(renderMaison(content))
+})
+
+app.get('/editorial', async (c) => {
+  const content = await readContent()
+  c.header('Cache-Control', 'no-cache')
+  return c.html(renderEditorialIndex(content))
+})
+
+app.get('/editorial/:slug', async (c) => {
+  const content = await readContent()
+  const article = findBySlug(content.editorials, c.req.param('slug'))
+  c.header('Cache-Control', 'no-cache')
+  if (!article) return notFound(c, content)
+  return c.html(renderEditorialDetail(content, article))
+})
+
+app.get('/search', async (c) => {
+  const content = await readContent()
+  c.header('Cache-Control', 'no-cache')
+  return c.html(renderSearch(content, c.req.query('q') || ''))
 })
 
 app.get('/journal', async (c) => {
@@ -137,7 +226,7 @@ app.get('/journal', async (c) => {
 
 app.get('/journal/:slug', async (c) => {
   const content = await readContent()
-  const article = findBySlug(content.journal, c.req.param('slug'))
+  const article = findBySlug(content.editorials || content.journal, c.req.param('slug'))
   c.header('Cache-Control', 'no-cache')
   if (!article) return notFound(c, content)
   return c.html(renderJournalDetail(content, article))
@@ -160,29 +249,6 @@ app.get('/uploads/:filename', async (c) => {
   }
 })
 
-app.get('/api/health', (c) => {
-  return c.json({
-    ok: true,
-    service: 'vael-atelier',
-    storage: 'file-json',
-    uptime: Math.round(process.uptime())
-  })
-})
-
-app.get('/api/content', async (c) => {
-  const content = await readContent()
-  c.header('Cache-Control', 'no-store')
-  return c.json({
-    site: content.site,
-    campaigns: content.campaigns.length,
-    collections: content.collections.length,
-    products: content.products.length,
-    journal: content.journal.length,
-    boutiques: content.boutiques.length,
-    media: content.media.length
-  })
-})
-
 app.get('/robots.txt', (c) => {
   const origin = publicOrigin(c)
   c.header('Cache-Control', 'public, max-age=3600')
@@ -202,11 +268,17 @@ app.get('/sitemap.xml', (c) => {
     const urls = [
       '/',
       '/collections',
+      '/shop',
+      '/cart',
+      '/checkout',
+      '/order-status',
+      '/maison',
+      '/editorial',
       '/journal',
       '/boutiques',
       ...content.collections.map((item) => `/collections/${item.slug}`),
-      ...content.products.map((item) => `/products/${item.slug}`),
-      ...content.journal.map((item) => `/journal/${item.slug}`)
+      ...content.products.map((item) => `/shop/${item.slug}`),
+      ...content.editorials.map((item) => `/editorial/${item.slug}`)
     ]
 
     return c.text(`<?xml version="1.0" encoding="UTF-8"?>
@@ -218,29 +290,16 @@ ${urls.map((path) => `  <url><loc>${origin}${path}</loc></url>`).join('\n')}
 })
 
 app.get('/admin/login', (c) => {
-  if (isAdmin(c)) return c.redirect('/admin')
-  c.header('Cache-Control', 'no-store')
-  return c.html(renderLogin())
+  return c.redirect('/admin')
 })
 
 app.post('/admin/login', async (c) => {
-  const body = await c.req.parseBody()
-  if (field(body, 'password') !== adminPassword) {
-    c.status(401)
-    c.header('Cache-Control', 'no-store')
-    return c.html(renderLogin('Password admin tidak cocok.'))
-  }
-
-  setAdminCookie(c, createSession())
-  return c.redirect('/admin?notice=Login berhasil')
+  return c.redirect('/admin')
 })
 
 app.get('/admin', async (c) => {
-  const guard = requireAdmin(c)
-  if (guard) return guard
-  const content = await readContent()
   c.header('Cache-Control', 'no-store')
-  return c.html(renderAdmin(content, csrfToken(c), c.req.query('notice') || ''))
+  return c.html(renderAdmin(null, '', c.req.query('notice') || ''))
 })
 
 app.post('/admin/logout', async (c) => {
@@ -501,7 +560,14 @@ if (isMainModule()) {
     port
   })
 
-  console.log(`VAEL Atelier is listening on http://${hostname}:${port}`)
+  console.log([
+    `${process.env.APP_NAME || 'MAISON RAVA'} listening`,
+    `env=${process.env.NODE_ENV || 'development'}`,
+    `host=${hostname}`,
+    `port=${port}`,
+    `dataDir=${dataDir}`,
+    `health=http://${hostname}:${port}/api/health`
+  ].join(' | '))
 }
 
 function campaignFromBody(body, fallbackSlug = '') {
@@ -654,7 +720,7 @@ function requireAdmin(c) {
 }
 
 function isAdmin(c) {
-  return verifySession(readCookie(c, 'vael_admin'))
+  return verifySession(readCookie(c, 'rava_admin'))
 }
 
 function createSession() {
@@ -674,7 +740,7 @@ function verifySession(token) {
 }
 
 function csrfToken(c) {
-  const token = readCookie(c, 'vael_admin') || ''
+  const token = readCookie(c, 'rava_admin') || ''
   return sign(`csrf:${token}`)
 }
 
@@ -694,7 +760,7 @@ function safeEqual(a = '', b = '') {
 }
 
 function setAdminCookie(c, token) {
-  setCookie(c, 'vael_admin', token, {
+  setCookie(c, 'rava_admin', token, {
     path: '/',
     maxAge: sessionMaxAge,
     httpOnly: true,
@@ -704,7 +770,7 @@ function setAdminCookie(c, token) {
 }
 
 function clearAdminCookie(c) {
-  deleteCookie(c, 'vael_admin', {
+  deleteCookie(c, 'rava_admin', {
     path: '/',
     secure: isSecureRequest(c)
   })

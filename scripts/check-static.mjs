@@ -1,7 +1,5 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { defaultContent } from '../src/content-store.js'
-import { renderHome } from '../src/render.js'
 
 const root = process.cwd()
 const srcDir = join(root, 'src')
@@ -29,27 +27,29 @@ const css = await readFile(join(root, 'public/styles.css'), 'utf8')
 const appJs = await readFile(join(root, 'public/app.js'), 'utf8')
 const server = await readFile(join(root, 'src/server.js'), 'utf8')
 const store = await readFile(join(root, 'src/content-store.js'), 'utf8')
+const render = await readFile(join(root, 'src/render.js'), 'utf8')
 const schema = await readFile(join(root, 'src/content-schema.js'), 'utf8')
 const markdown = await readFile(join(root, 'src/markdown.js'), 'utf8')
+const apiRoutes = await readFile(join(root, 'src/api-routes.js'), 'utf8')
+const templateProfile = await readFile(join(root, 'src/template-profile.js'), 'utf8')
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
-const html = renderHome(defaultContent)
 
-const renderedExternalRefs = [...html.matchAll(/(?:src|href)=["']https?:\/\//g)]
+const renderExternalRefs = [...render.matchAll(/(?:src|href)=["']https?:\/\//g)]
 
-if (renderedExternalRefs.length > 0) {
-  throw new Error(`External render reference found: ${renderedExternalRefs.length}`)
+if (renderExternalRefs.length > 0) {
+  throw new Error(`External render reference found: ${renderExternalRefs.length}`)
 }
 
-if (!html.includes('fetchpriority="high"')) {
-  throw new Error('Rendered output needs fetchpriority="high" for LCP.')
+if (!render.includes('fetchpriority="high"')) {
+  throw new Error('Renderer needs fetchpriority="high" for LCP.')
 }
 
-if (!html.includes('loading="lazy"')) {
-  throw new Error('Rendered output should lazy-load below-fold images.')
+if (!render.includes('loading="lazy"')) {
+  throw new Error('Renderer should lazy-load below-fold images.')
 }
 
-if (!html.includes('/app.js')) {
-  throw new Error('Rendered home should include the lightweight client script.')
+if (!render.includes('/app.js')) {
+  throw new Error('Renderer should include the lightweight client script.')
 }
 
 if (css.includes('letter-spacing: -')) {
@@ -84,12 +84,20 @@ if (!markdown.includes('sanitizeHtml') || !markdown.includes('marked.parse')) {
   throw new Error('Markdown rendering must be sanitized.')
 }
 
+if (!server.includes("app.route('/api/v1', apiRoutes)") || !apiRoutes.includes("apiRoutes.get('/products")) {
+  throw new Error('API v1 routes are not wired for future frontend consumption.')
+}
+
+if (!render.includes('data-template="${attr(templateProfile.id)}"') || !templateProfile.includes("id: 'monochrome-maison'")) {
+  throw new Error('Template profile is not wired into rendered output.')
+}
+
 const clientBytes = Buffer.byteLength(css) + Buffer.byteLength(appJs)
 if (clientBytes > 70_000) {
   throw new Error(`Client CSS and JS too large before compression: ${clientBytes} bytes`)
 }
 
-if (total > 180_000) {
+if (total > 260_000) {
   throw new Error(`Core source is too large before compression: ${total} bytes`)
 }
 

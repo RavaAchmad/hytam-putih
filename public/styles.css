@@ -1,10 +1,10 @@
 :root {
-  /* Template: Monochrome Maison
-     Inspired by high-fashion editorial sites: large campaign frames,
-     sharp black/white contrast, quiet cards, magazine spacing. */
+  /* Base tokens. Template-specific overrides are scoped on body[data-template]. */
   --ink: #050505;
   --charcoal: #171717;
   --muted: #666;
+  --gold: #9f8a58;
+  --warm-gray: #9a9489;
   --paper: #f7f7f3;
   --surface: #fff;
   --soft: #ededeb;
@@ -41,6 +41,17 @@ body {
 
 body[data-template="monochrome-maison"] {
   --active-template: "monochrome-maison";
+  /* Template: Monochrome Maison
+     Inspired by high-fashion editorial sites: large campaign frames,
+     sharp black/ivory contrast, muted gold accents, quiet cards, magazine spacing. */
+  --template-frame: min(1180px, calc(100% - 40px));
+  --template-frame-wide: min(1280px, calc(100% - 40px));
+  --template-section-y: 88px;
+  --template-radius: 4px;
+  --template-border: 1px solid var(--line);
+  --template-hero-min: 620px;
+  --template-hero-height: 86svh;
+  --template-card-gap: 18px;
 }
 
 img {
@@ -1063,6 +1074,297 @@ address {
   color: var(--ink);
 }
 
+.shop-page,
+.cart-layout,
+.checkout-layout {
+  display: grid;
+  gap: 28px;
+}
+
+.shop-filter-panel,
+.checkout-form,
+.admin-token-form,
+.newsletter-form,
+.search-hero-form {
+  display: grid;
+  gap: .85rem;
+}
+
+.shop-filter-panel {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: end;
+  padding: 1rem;
+  border: var(--template-border);
+  background: var(--surface);
+}
+
+.shop-filter-panel label,
+.checkout-form label,
+.admin-token-form label,
+.size-select,
+.newsletter-form label {
+  display: grid;
+  gap: .35rem;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.shop-filter-panel input,
+.shop-filter-panel select,
+.checkout-form input,
+.checkout-form textarea,
+.checkout-form select,
+.admin-token-form input,
+.newsletter-form input,
+.search-hero-form input,
+.size-select select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--template-radius);
+  background: var(--surface);
+  color: var(--ink);
+  padding: .62rem .7rem;
+}
+
+.cart-layout,
+.checkout-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 360px);
+  align-items: start;
+}
+
+.cart-items,
+.invoice-items {
+  display: grid;
+  gap: .85rem;
+}
+
+.cart-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 86px auto;
+  gap: 1rem;
+  align-items: center;
+  padding: .85rem;
+  border: var(--template-border);
+  background: var(--surface);
+}
+
+.cart-row img {
+  width: 110px;
+  aspect-ratio: 5 / 6;
+  object-fit: cover;
+  background: var(--soft);
+}
+
+.cart-row h3 {
+  font-size: 1.05rem;
+}
+
+.cart-row label {
+  display: grid;
+  gap: .35rem;
+  color: var(--muted);
+  font-size: .72rem;
+  text-transform: uppercase;
+}
+
+.cart-row input {
+  width: 74px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  padding: .45rem;
+}
+
+.summary-card,
+.invoice-card,
+.empty-state,
+.loading-state {
+  border: var(--template-border);
+  background: var(--surface);
+  padding: 1rem;
+}
+
+.summary-card {
+  position: sticky;
+  top: 86px;
+  display: grid;
+  gap: 1rem;
+}
+
+.summary-lines {
+  display: grid;
+  gap: .55rem;
+  margin: 0;
+}
+
+.summary-lines div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--soft);
+  padding-bottom: .45rem;
+}
+
+.summary-lines dt {
+  color: var(--muted);
+}
+
+.summary-lines dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .85rem;
+}
+
+.form-message {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--gold);
+  font-size: .85rem;
+}
+
+.accordion {
+  border-top: 1px solid var(--line);
+  padding: .8rem 0;
+}
+
+.accordion summary {
+  cursor: pointer;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: .8rem;
+}
+
+.payment-methods {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.payment-methods span,
+.status-line strong {
+  border: 1px solid var(--gold);
+  color: var(--ink);
+  padding: .3rem .55rem;
+  border-radius: 999px;
+  background: rgb(159 138 88 / 11%);
+}
+
+.invoice-card {
+  max-width: 760px;
+  margin: 0 auto;
+  display: grid;
+  gap: 1rem;
+}
+
+.invoice-card h1,
+.search-page h1 {
+  font-size: 3rem;
+}
+
+.empty-state,
+.loading-state {
+  display: grid;
+  gap: .5rem;
+  min-height: 150px;
+  align-content: center;
+}
+
+.empty-state h3 {
+  font-size: 1.25rem;
+}
+
+.loading-state span {
+  width: 42px;
+  height: 2px;
+  background: var(--gold);
+  animation: pulse-line 1.2s ease-in-out infinite;
+}
+
+.admin-app {
+  width: min(1240px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 34px 0 80px;
+}
+
+.admin-login-panel {
+  max-width: 540px;
+  min-height: calc(100svh - 68px);
+  display: grid;
+  align-content: center;
+  gap: 1rem;
+  margin: 0 auto;
+}
+
+.admin-console {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: .5rem;
+  overflow-x: auto;
+  border-bottom: var(--template-border);
+  padding-bottom: .65rem;
+}
+
+.admin-tabs button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  padding: .45rem .75rem;
+  text-transform: uppercase;
+  font-size: .75rem;
+}
+
+.admin-tabs button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--inverse);
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+  border-bottom: 1px solid var(--line);
+  padding: .65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@keyframes pulse-line {
+  0%,
+  100% {
+    opacity: .35;
+    transform: scaleX(.65);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
 [hidden] {
   display: none !important;
 }
@@ -1106,7 +1408,10 @@ address {
   .magazine-section,
   .admin-grid,
   .admin-form.split,
-  .product-detail {
+  .product-detail,
+  .cart-layout,
+  .checkout-layout,
+  .shop-filter-panel {
     grid-template-columns: 1fr;
   }
 
@@ -1160,7 +1465,8 @@ address {
   .newsletter,
   .site-footer,
   .admin-topbar,
-  .shop-tools {
+  .shop-tools,
+  .cart-row {
     display: block;
   }
 
@@ -1182,8 +1488,18 @@ address {
   .editor-list,
   .editor-list.three,
   .media-grid,
-  .product-gallery {
+  .product-gallery,
+  .form-grid,
+  .admin-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .summary-card {
+    position: static;
+  }
+
+  .cart-row > * + * {
+    margin-top: .75rem;
   }
 
   .appointment {

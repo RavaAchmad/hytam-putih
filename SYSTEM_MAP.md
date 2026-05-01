@@ -1,75 +1,62 @@
 # Project Summary
 
-- Tujuan aplikasi: website luxury editorial multi-page untuk VAEL Atelier dengan CMS admin single-user, katalog produk premium, collection magazine pages, journal, boutiques, dan inquiry ringan.
-- Tech stack utama: Node.js >=20, Hono SSR, `@hono/node-server`, Zod content validation, Nano ID generation, Marked + sanitize-html untuk journal markdown aman, file JSON storage, HTML renderer manual, CSS/JS statis kecil, PowerShell `System.Drawing` untuk aset JPEG monochrome.
-- DB/queue/integrasi penting: DB Not found; queue Not found; storage utama adalah `DATA_DIR/content.json` dan `DATA_DIR/uploads/`.
-- Pola arsitektur singkat: Hono route/handler -> file JSON content store -> SSR renderer -> public HTML; admin POST memakai signed cookie + CSRF lalu menulis ulang content JSON.
+- Tujuan aplikasi: website luxury editorial commerce untuk brand fiksi **MAISON RAVA** dengan homepage campaign, collections, shop, product detail, cart, checkout invoice mock, order status, maison story, editorial, search, dan admin CMS.
+- Tech stack utama: Node.js 20+, Hono SSR/API, `@hono/node-server`, Zod validation, Nano ID, Marked + sanitize-html, JSON file storage, structured CSS tokens, vanilla JS untuk cart/admin interaksi.
+- DB/queue/integrasi penting: DB Not found; queue Not found; payment gateway nyata Not found; storage runtime ada di `DATA_DIR/*.json` dan `DATA_DIR/uploads/`.
+- Pola arsitektur singkat: Hono route -> `readContent()`/`writeContent()` JSON store -> SSR renderer untuk pages atau API JSON -> browser JS untuk cart/admin.
+- Catatan arsitektur: tidak memakai Next.js pada versi ini karena target utama adalah Pterodactyl single-process yang stabil dan ringan.
 
 # Core Logic Flow (Function-Level Flowchart)
 
-- HTTP request -> `serve({ fetch: app.fetch })` -> middleware `compress()` -> `etag()` -> `secureHeaders()` -> custom CSP/cache headers -> route handler.
 - `GET /` -> `readContent()` -> `renderHome(content)` -> SSR HTML.
 - `GET /collections` -> `readContent()` -> `renderCollectionsIndex(content)` -> SSR HTML.
-- `GET /collections/:slug` -> `readContent()` -> `findBySlug(collections)` -> `renderCollectionDetail(content, collection)` -> SSR HTML.
-- `GET /products/:slug` -> `readContent()` -> `findBySlug(products)` -> `renderProductDetail(content, product)` -> SSR HTML.
-- `GET /journal` -> `readContent()` -> `renderJournalIndex(content)` -> SSR HTML.
-- `GET /journal/:slug` -> `readContent()` -> `findBySlug(journal)` -> `renderJournalDetail(content, article)` -> SSR HTML.
-- `GET /boutiques` -> `readContent()` -> `renderBoutiques(content)` -> SSR HTML.
-- `GET /uploads/:filename` -> `readUploadedImage(filename)` -> `basename()` constrained file read -> binary image response.
-- `GET /api/health` -> inline handler -> process uptime + storage metadata -> JSON.
-- `GET /api/content` -> `readContent()` -> counts/site metadata -> JSON.
-- `GET /robots.txt` -> `publicOrigin(c)` -> dynamic text.
-- `GET /sitemap.xml` -> `readContent()` -> dynamic URLs for static pages + collection/product/journal slugs -> XML.
-- `GET /admin/login` -> `renderLogin()` unless `isAdmin(c)` redirects to `/admin`.
-- `POST /admin/login` -> `parseBody()` -> password compare -> `createSession()` -> `setAdminCookie()` -> redirect `/admin`.
-- `GET /admin` -> `requireAdmin()` -> `readContent()` -> `renderAdmin(content, csrfToken(c), notice)` -> SSR admin.
-- Admin POST routes -> `requireAdminPost()` -> CSRF verify -> body mapper (`productFromBody`, `collectionFromBody`, etc.) -> `writeContent(content)` -> redirect with notice.
-- `POST /admin/media/upload` -> `saveUploadedImage(file, alt)` -> `writeFile(DATA_DIR/uploads)` -> update `content.media`.
-- `POST /admin/content-json` -> parse JSON -> `writeContent(nextContent)` -> normalizer -> persist.
-- Unknown route -> `notFound(c, content?)` -> `renderNotFound()` -> 404 HTML.
-- Journal render -> `renderJournalDetail()` -> `renderMarkdown()` -> `marked.parse()` -> `sanitizeHtml()` -> safe rich-text HTML.
-- `npm run start` -> `preflight.mjs` -> env/data-dir write check -> `src/server.js`.
-- `npm run check` -> `check:syntax` all source/client/tool JS -> `check-static.mjs` render/static/module guard -> `smoke-test.mjs` Hono `app.request()` route tests.
-- `npm run content:init|doctor|backup` -> file tooling against `DATA_DIR/content.json`.
+- `GET /collections/:slug` -> `readContent()` -> `findBySlug(collections)` -> `renderCollectionDetail()` -> SSR HTML.
+- `GET /shop` -> `readContent()` -> `renderShopIndex(content, query)` -> filter/sort products -> SSR HTML.
+- `GET /shop/:slug` -> `readContent()` -> `findBySlug(products)` -> `renderProductDetail()` -> SSR HTML + cart button.
+- `GET /cart` -> `renderCart()` -> `public/app.js` reads localStorage -> cart UI.
+- `GET /checkout` -> `renderCheckout()` -> `public/app.js` posts `POST /api/orders` -> JSON order persisted.
+- `GET /invoice/:orderId` -> `readContent()` -> find order -> `renderInvoice()`.
+- `GET /order-status` -> `renderOrderStatus()` -> `public/app.js` calls `GET /api/orders/:orderId?email=`.
+- `GET /maison` -> `renderMaison()` -> editorial house story sections.
+- `GET /editorial/:slug` -> `readContent()` -> `renderEditorialDetail()` -> `renderMarkdown()` -> sanitized HTML.
+- `GET /search?q=` -> `readContent()` -> `renderSearch()` -> products/collections/editorials result groups.
+- `GET /api/products` -> `apiRoutes` -> `productListPayload()` -> pagination/filter/sort -> `{ ok, data }`.
+- `POST /api/newsletter|contact|orders` -> rate limit -> Zod parse -> `writeContent()` -> atomic JSON write.
+- `POST /api/admin/login` -> compare JSON token with `ADMIN_TOKEN` -> `{ ok, data }`.
+- `GET|POST|PATCH|DELETE /api/admin/*` -> Bearer token guard -> Zod validation -> CRUD array in JSON store -> `writeContent()`.
+- `npm start` -> `scripts/preflight.mjs` -> env/data-dir write check -> `src/server.js`.
+- `npm run build` -> syntax checks -> `scripts/check-static.mjs`.
 
 # Clean Tree
 
-```text
+```txt
 .
-|-- .github/
-|   |-- dependabot.yml
-|   `-- workflows/
-|       |-- ci.yml
-|       `-- codeql.yml
-|-- docs/
-|   `-- schiaparelli-inspired-analysis.md
 |-- public/
 |   |-- assets/
-|   |   |-- bag-keyline.jpg
-|   |   |-- column-heel.jpg
-|   |   |-- hero-atelier.jpg
-|   |   |-- look-coat.jpg
-|   |   `-- orbit-earcuff.jpg
 |   |-- app.js
 |   |-- index.html
 |   |-- site.webmanifest
 |   `-- styles.css
 |-- scripts/
+|   |-- check-static.mjs
 |   |-- content-backup.mjs
 |   |-- content-doctor.mjs
 |   |-- content-init.mjs
-|   |-- check-static.mjs
 |   |-- generate-assets.ps1
 |   |-- health-check.mjs
 |   |-- preflight.mjs
 |   `-- smoke-test.mjs
 |-- src/
+|   |-- api-routes.js
 |   |-- content-schema.js
 |   |-- content-store.js
 |   |-- markdown.js
 |   |-- render.js
-|   `-- server.js
+|   |-- seed-data.js
+|   |-- server.js
+|   `-- template-profile.js
 |-- .dockerignore
+|-- .env.example
 |-- .gitignore
 |-- Dockerfile
 |-- package.json
@@ -81,122 +68,102 @@
 # Module Map (The Chapters)
 
 - `src/server.js`
-  - Fungsi/class publik utama: exported `app`, Hono routes, admin auth helpers, body mappers, `publicOrigin`, `notFound`.
-  - Peran modul: entrypoint dan router utama untuk public pages, admin CMS, API metadata, upload serving, security headers, dan production env guard.
+  - Fungsi/class publik utama: exported `app`, Hono routes, static/upload handlers, sitemap/robots, server startup.
+  - Peran modul: entrypoint Hono SSR/API untuk public pages, admin shell, static files, uploads, and Pterodactyl listen.
+
+- `src/api-routes.js`
+  - Fungsi/class publik utama: exported `apiRoutes`, `productListPayload`, CRUD route handlers, `ok`, `errorJson`.
+  - Peran modul: public/admin API layer dengan response format konsisten, Zod validation, rate limit, order flow, dan Bearer auth.
 
 - `src/content-store.js`
-  - Fungsi/class publik utama: `defaultContent`, `ensureStore`, `readContent`, `writeContent`, `saveUploadedImage`, `readUploadedImage`, `deleteUploadedImage`, `slugify`, `newId`.
-  - Peran modul: file-based CMS store, default schema, normalizer kompatibel data lama, upload image storage, dan pemanggil validasi Zod.
+  - Fungsi/class publik utama: `ensureStore`, `readContent`, `writeContent`, `readStoreFile`, `writeStoreFile`, `saveUploadedImage`, `readUploadedImage`, `deleteUploadedImage`, `slugify`, `newId`.
+  - Peran modul: storage JSON multi-file di `DATA_DIR`, automatic seed, atomic write, `.bak`, upload image guard.
+
+- `src/seed-data.js`
+  - Fungsi/class publik utama: `seedSite`, `seedHomepage`, `seedProducts`, `seedCollections`, `seedEditorials`, `defaultContent`.
+  - Peran modul: seed MAISON RAVA untuk 12 products, 4 collections, 6 editorials, site settings, dan homepage.
 
 - `src/content-schema.js`
   - Fungsi/class publik utama: `contentSchema`, `validateContent`.
-  - Peran modul: schema Zod untuk memastikan struktur CMS valid sebelum dipakai/render/disimpan.
+  - Peran modul: validasi struktur content gabungan sebelum dipakai/render/persist.
+
+- `src/render.js`
+  - Fungsi/class publik utama: `renderHome`, `renderShopIndex`, `renderProductDetail`, `renderCart`, `renderCheckout`, `renderInvoice`, `renderOrderStatus`, `renderMaison`, `renderEditorialIndex`, `renderEditorialDetail`, `renderSearch`, `renderAdmin`, `renderNotFound`, `escapeHtml`.
+  - Peran modul: SSR renderer untuk semua halaman public dan admin shell dengan escaping HTML/attribute.
 
 - `src/markdown.js`
   - Fungsi/class publik utama: `renderMarkdown`.
-  - Peran modul: mengubah journal body Markdown menjadi HTML yang disanitasi.
+  - Peran modul: render body editorial Markdown menjadi HTML yang disanitasi.
 
-- `src/render.js`
-  - Fungsi/class publik utama: `renderHome`, `renderCollectionsIndex`, `renderCollectionDetail`, `renderProductDetail`, `renderJournalIndex`, `renderJournalDetail`, `renderBoutiques`, `renderLogin`, `renderAdmin`, `renderNotFound`, `escapeHtml`.
-  - Peran modul: SSR renderer untuk public pages dan admin forms, termasuk escaping HTML/attribute.
+- `src/template-profile.js`
+  - Fungsi/class publik utama: `templateProfile`.
+  - Peran modul: metadata template CSS/visual untuk shell “monochrome-maison”.
 
 - `public/app.js`
-  - Fungsi/class publik utama: `updateProducts`.
-  - Peran modul: interaksi ringan buyer untuk filter kategori dan search product card yang sudah SSR.
+  - Fungsi/class publik utama: cart helpers, checkout submit, order status lookup, newsletter submit, admin client.
+  - Peran modul: interaksi browser kecil untuk filter, localStorage cart, invoice API, dan CMS client.
 
 - `public/styles.css`
-  - Fungsi/class publik utama: Not found; stylesheet global.
-  - Peran modul: sistem UI monochrome untuk campaign, collections, products, magazine layout, admin panel, responsive states, dan reduced motion.
+  - Fungsi/class publik utama: CSS tokens, layout utilities, component classes, responsive rules.
+  - Peran modul: design system visual black/ivory/warm-gray/muted-gold dengan layout mobile-first.
 
-- `public/index.html`
-  - Fungsi/class publik utama: Not found; static fallback.
-  - Peran modul: fallback redirect kecil ke `/` karena homepage asli dirender oleh Hono.
-
-- `public/site.webmanifest`
-  - Fungsi/class publik utama: Not found; manifest JSON.
-  - Peran modul: metadata PWA ringan untuk VAEL Atelier.
+- `scripts/preflight.mjs`
+  - Fungsi/class publik utama: top-level preflight.
+  - Peran modul: cek env production wajib dan akses tulis `DATA_DIR` sebelum server start.
 
 - `scripts/check-static.mjs`
-  - Fungsi/class publik utama: top-level validation flow.
-  - Peran modul: static/render guard untuk SSR output, external refs, LCP/lazy loading, monochrome CSS tokens, env guard, upload guard, dependency guard, dan size budget.
+  - Fungsi/class publik utama: top-level static guard.
+  - Peran modul: cek budget source/client, SSR refs, security assumptions, dependency declarations, dan template wiring.
 
 - `scripts/smoke-test.mjs`
   - Fungsi/class publik utama: top-level smoke flow.
-  - Peran modul: menjalankan Hono `app.request()` dengan `DATA_DIR` temp untuk memastikan public/admin/API/upload-safe routes bekerja.
-
-- `scripts/generate-assets.ps1`
-  - Fungsi/class publik utama: `New-Canvas`, `Save-Jpeg`, drawing helpers, `New-ProductImage`.
-  - Peran modul: generator aset JPEG monochrome lokal untuk hero dan product imagery.
-
-- `scripts/preflight.mjs`
-  - Fungsi/class publik utama: top-level preflight flow.
-  - Peran modul: mengecek env production wajib dan akses tulis `DATA_DIR` sebelum server start.
-
-- `scripts/health-check.mjs`
-  - Fungsi/class publik utama: top-level health flow.
-  - Peran modul: mengecek endpoint `/api/health` pada server yang sedang berjalan.
+  - Peran modul: test route utama, admin token login, health, order creation, dan order status via `app.request()`.
 
 - `scripts/content-init.mjs`, `scripts/content-doctor.mjs`, `scripts/content-backup.mjs`
   - Fungsi/class publik utama: top-level content tooling.
-  - Peran modul: seed, inspeksi, dan backup content JSON untuk operasional Pterodactyl.
-
-- `package.json`
-  - Fungsi/class publik utama: npm scripts `start`, `preflight`, `health`, `check`, `content:*`, `assets:generate:win`.
-  - Peran modul: manifest Node project, dependency runtime, engine, dan command operasional container.
-
-- `Dockerfile`
-  - Fungsi/class publik utama: Not found; container build steps.
-  - Peran modul: Node 22 Alpine production image dengan `DATA_DIR=/app/data`, non-root runtime, dan writable data directory.
-
-- `pterodactyl.env.example`
-  - Fungsi/class publik utama: Not found; env example.
-  - Peran modul: template env production untuk Pterodactyl, termasuk admin password/session secret/data dir/upload limit/WhatsApp.
+  - Peran modul: seed, inspeksi, dan backup file JSON runtime.
 
 # Data & Config
 
-- Lokasi `.env*` / config utama:
-  - `.env*`: Not found.
-  - `pterodactyl.env.example`: contoh env wajib production.
-  - `Dockerfile`: default container env dan writeable `/app/data`.
-  - `package.json`: scripts/dependencies (`hono`, `@hono/node-server`, `zod`, `nanoid`, `marked`, `sanitize-html`).
-  - `public/site.webmanifest`: web app metadata.
-  - `.github/workflows/*.yml` dan `.github/dependabot.yml`: CI/security automation.
-
-- Skema data inti:
-  - `site`: brand, mark, SEO description, hero copy/image, CTA labels, optional WhatsApp.
-  - `media`: upload/built-in image entries with `id`, `src`, `alt`, `builtin`, optional upload metadata.
-  - `campaigns`: homepage editorial panels with slug/number/title/text/image.
-  - `collections`: slug/title/season/cover/intro, magazine `sections[]`, and `productSlugs[]`.
-  - `products`: slug/title/category/collectionSlug/line/description/price/status, `images[]`, `specs[]`, `relatedSlugs[]`.
-  - `journal`: slug/type/title/summary/body/image.
-  - `boutiques`: slug/city/title/address/hours/email/image.
-  - `appointment`, `newsletter`, `metrics`, `quickStrip`, `timeline`: content blocks.
-
-- Lokasi migration/seed:
-  - Migrations: Not found.
-  - Seeds: `defaultContent` di `src/content-store.js`, ditulis otomatis ke `DATA_DIR/content.json` saat store kosong.
-
-- Folder output/runtime artifacts:
-  - `DATA_DIR/content.json`: CMS content runtime.
+- Lokasi env/config:
+  - `.env.example`: contoh env umum.
+  - `pterodactyl.env.example`: contoh env Pterodactyl.
+  - `package.json`: scripts/dependencies/runtime engine.
+  - `Dockerfile`: optional container reference.
+- Skema data runtime:
+  - `site.json`: brand/site settings, categories, quick strip, house code, metrics, boutiques, appointment, newsletter, media.
+  - `homepage.json`: featured campaign/collection/products/editorials dan campaign panels.
+  - `products.json`: id/slug/title/category/collectionSlug/line/description/priceValue/images/sizes/specs/relatedSlugs.
+  - `collections.json`: id/slug/title/season/intro/cover/sections/productSlugs.
+  - `editorials.json`: id/slug/type/title/summary/body/image/publishedAt.
+  - `orders.json`: invoice/customer/items/totals/paymentMethod/status timestamps.
+  - `subscribers.json`: newsletter subscribers.
+- Relasi ringkas:
+  - `products.collectionSlug` -> `collections.slug`.
+  - `collections.productSlugs[]` -> `products.slug`.
+  - `products.relatedSlugs[]` -> `products.slug`.
+  - `homepage.featured*Slugs[]` -> corresponding entity slug.
+- Migration/seed:
+  - Migration Not found.
+  - Seeds: `src/seed-data.js`, ditulis otomatis oleh `ensureStore()`.
+- Output/runtime artifacts:
+  - `DATA_DIR/*.json`: CMS/order runtime data.
+  - `DATA_DIR/*.json.bak`: backup sebelum overwrite.
   - `DATA_DIR/uploads/`: uploaded images runtime.
-  - `public/assets/`: built-in generated JPEG assets.
-  - `node_modules/`, `.git/`, `data/`, `tmp/`, `coverage/`: excluded from map.
+  - `DATA_DIR/backups/`: optional backup output.
+  - `node_modules/`, `package-lock.json`, `.git/`, `data/`, `tmp/`, `coverage/`: excluded from map.
 
 # External Integrations
 
-- npm registry: install dependency via `npm ci`.
-- GitHub Actions: CI and CodeQL workflows.
-- GitHub Dependabot: dependency update automation.
-- Browser mail client: `mailto:` inquiry/newsletter links.
-- Optional WhatsApp: `CONTACT_WHATSAPP`/site WhatsApp value renders buyer inquiry link only when configured.
-- Runtime DB/payment/email API/queue: Not found.
+- npm registry: dependency install di server/Pterodactyl via `npm install && npm run build`.
+- Browser mail client: `mailto:` inquiry links.
+- Optional WhatsApp: `CONTACT_WHATSAPP` renders buyer inquiry link only when configured.
+- Runtime DB/payment/email API/queue/external CMS: Not found.
 
 # Risks / Blind Spots
 
-- File JSON store is single-writer and best for single-admin usage; concurrent admin writes can overwrite last saved content.
-- Pterodactyl must persist `DATA_DIR`; otherwise content/uploads reset on container recreation.
-- `scripts/generate-assets.ps1` depends on PowerShell + `System.Drawing`, so asset regeneration is Windows-oriented.
-- No real checkout, payment, inventory, email sending, CRM, or saved leads by design.
-- Upload validation checks MIME type and size, but does not perform image re-encoding or malware scanning.
-- Admin auth is single password via env, not multi-user RBAC.
-- PageSpeed lab test still requires deployed public HTTPS URL.
+- Tidak memakai Next.js App Router pada versi ini; dipilih Hono SSR karena paling stabil untuk Pterodactyl single container saat ini.
+- Admin token prototype disimpan di browser `localStorage`; cukup untuk v1 single-admin, bukan multi-user auth production enterprise.
+- JSON file store single-writer; concurrent admin writes dapat memakai last-write-wins.
+- Mock payment bukan payment gateway nyata; status bisa diubah via admin/API webhook mock.
+- `npm install` tidak bisa diverifikasi dari sesi ini jika sandbox/network menolak registry access.

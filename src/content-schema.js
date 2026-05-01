@@ -35,7 +35,30 @@ export const contentSchema = z.object({
     heroAlt: z.string(),
     primaryCta: z.string(),
     secondaryCta: z.string(),
-    whatsapp: z.string().optional()
+    whatsapp: z.string().optional(),
+    categories: z.array(z.string()).optional(),
+    quickStrip: z.array(z.string()).optional(),
+    code: z.unknown().optional(),
+    timeline: z.array(z.unknown()).optional(),
+    metrics: z.array(z.unknown()).optional(),
+    boutiques: z.array(z.unknown()).optional(),
+    appointment: z.unknown().optional(),
+    newsletter: z.unknown().optional(),
+    media: z.array(z.unknown()).optional()
+  }).passthrough(),
+  homepage: z.object({
+    featuredCampaign: z.string().default(''),
+    featuredCollectionSlug: z.string().default(''),
+    featuredProductSlugs: z.array(z.string()).default([]),
+    featuredEditorialSlugs: z.array(z.string()).default([]),
+    campaigns: z.array(z.object({
+      slug: z.string(),
+      number: z.string(),
+      title: z.string(),
+      text: z.string(),
+      image: z.string(),
+      alt: z.string()
+    }).passthrough()).default([])
   }).passthrough(),
   quickStrip: z.array(z.string()),
   campaigns: z.array(z.object({
@@ -65,11 +88,15 @@ export const contentSchema = z.object({
     line: z.string(),
     description: z.string(),
     price: z.string(),
+    priceValue: z.number().default(0),
+    currency: z.string().default('EUR'),
     status: z.string(),
     images: z.array(z.string()),
     alt: z.string(),
+    sizes: z.array(z.string()).default([]),
     specs: z.array(productSpecSchema),
-    relatedSlugs: z.array(z.string())
+    relatedSlugs: z.array(z.string()),
+    createdAt: z.string().optional()
   }).passthrough()),
   code: imageSectionSchema.extend({
     eyebrow: z.string()
@@ -90,8 +117,19 @@ export const contentSchema = z.object({
     summary: z.string(),
     body: z.string(),
     image: z.string(),
-    alt: z.string()
+    alt: z.string(),
+    publishedAt: z.string().optional()
   }).passthrough()),
+  editorials: z.array(z.object({
+    slug: z.string(),
+    type: z.string(),
+    title: z.string(),
+    summary: z.string(),
+    body: z.string(),
+    image: z.string(),
+    alt: z.string(),
+    publishedAt: z.string().optional()
+  }).passthrough()).default([]),
   boutiques: z.array(z.object({
     slug: z.string(),
     city: z.string(),
@@ -118,7 +156,9 @@ export const contentSchema = z.object({
     subject: z.string(),
     label: z.string()
   }).passthrough(),
-  media: z.array(mediaSchema)
+  media: z.array(mediaSchema),
+  orders: z.array(z.unknown()).default([]),
+  subscribers: z.array(z.unknown()).default([])
 }).passthrough()
 
 export function validateContent(content) {

@@ -1,19 +1,22 @@
-FROM node:22-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
 ENV DATA_DIR=/app/data
+ENV ADMIN_TOKEN=change-this-secure-token
 
-COPY package*.json ./
-RUN npm ci --omit=dev
+COPY package.json ./
+RUN npm install --omit=dev --no-audit --no-fund
 
 COPY --chown=node:node public ./public
 COPY --chown=node:node src ./src
+COPY --chown=node:node scripts ./scripts
+RUN npm run build
 RUN mkdir -p /app/data && chown -R node:node /app/data
 
 USER node
 EXPOSE 3000
 
-CMD ["node", "src/server.js"]
+CMD ["npm", "start"]

@@ -1,21 +1,22 @@
 import { existsSync } from 'node:fs'
 import { copyFile, mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { dataDir, ensureStore, storeFiles } from '../src/content-store.js'
 
-const dataDir = resolve(process.env.DATA_DIR || './data')
-const contentPath = join(dataDir, 'content.json')
 const backupDir = resolve(process.env.BACKUP_DIR || join(dataDir, 'backups'))
 
-if (!existsSync(contentPath)) {
-  console.log(`Content store not found: ${contentPath}`)
-  console.log('Nothing to backup yet.')
-  process.exit(0)
-}
+await ensureStore()
 
 await mkdir(backupDir, { recursive: true })
 
 const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-const out = join(backupDir, `content-${stamp}.json`)
-await copyFile(contentPath, out)
+const outDir = join(backupDir, stamp)
+await mkdir(outDir, { recursive: true })
 
-console.log(`Backup written: ${out}`)
+for (const [key, file] of Object.entries(storeFiles)) {
+  if (existsSync(file)) {
+    await copyFile(file, join(outDir, `${key}.json`))
+  }
+}
+
+console.log(`Backup written: ${outDir}`)
