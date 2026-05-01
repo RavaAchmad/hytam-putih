@@ -70,7 +70,7 @@ if (!store.includes('image/png,image/jpeg,image/webp,image/gif') && !store.inclu
   throw new Error('Upload image type guard is missing.')
 }
 
-for (const dependency of ['zod', 'nanoid', 'marked', 'sanitize-html']) {
+for (const dependency of ['zod', 'nanoid']) {
   if (!packageJson.dependencies?.[dependency]) {
     throw new Error(`Expected dependency missing: ${dependency}`)
   }
@@ -80,8 +80,8 @@ if (!schema.includes('contentSchema') || !store.includes('validateContent')) {
   throw new Error('Zod content validation is not wired.')
 }
 
-if (!markdown.includes('sanitizeHtml') || !markdown.includes('marked.parse')) {
-  throw new Error('Markdown rendering must be sanitized.')
+if (!markdown.includes('escapeHtml') || !markdown.includes('renderInline')) {
+  throw new Error('Markdown rendering must escape HTML before formatting.')
 }
 
 if (!server.includes("app.route('/api/v1', apiRoutes)") || !apiRoutes.includes("apiRoutes.get('/products")) {

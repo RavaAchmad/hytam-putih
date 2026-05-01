@@ -1,35 +1,40 @@
 {
   "name": "maison-rava-luxury-commerce",
   "version": "1.0.0",
-  "description": "Production-ready luxury editorial commerce for Pterodactyl powered by Hono SSR, API routes, and JSON CMS storage.",
   "private": true,
   "type": "module",
-  "license": "UNLICENSED",
+  "description": "Luxury fashion editorial and commerce website optimized for Pterodactyl Node.js containers.",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "node src/server.js",
-    "build": "npm run check:syntax && npm run check:static",
-    "start": "node scripts/preflight.mjs && node src/server.js",
-    "start:raw": "node src/server.js",
-    "start:pterodactyl": "node scripts/preflight.mjs && node src/server.js",
-    "preflight": "node scripts/preflight.mjs",
-    "health": "node scripts/health-check.mjs",
-    "check": "npm run check:syntax && npm run check:static && npm run test:smoke",
-    "check:syntax": "node --check src/server.js && node --check src/api-routes.js && node --check src/render.js && node --check src/content-store.js && node --check src/content-schema.js && node --check src/seed-data.js && node --check src/markdown.js && node --check src/template-profile.js && node --check public/app.js && node --check scripts/preflight.mjs && node --check scripts/health-check.mjs && node --check scripts/content-init.mjs && node --check scripts/content-doctor.mjs && node --check scripts/content-backup.mjs && node --check scripts/check-static.mjs && node --check scripts/smoke-test.mjs",
-    "check:static": "node scripts/check-static.mjs",
-    "test:smoke": "node scripts/smoke-test.mjs",
-    "content:init": "node scripts/content-init.mjs",
-    "content:doctor": "node scripts/content-doctor.mjs",
-    "content:backup": "node scripts/content-backup.mjs"
+    "dev": "next dev -H 0.0.0.0 -p ${PORT:-3000}",
+    "build": "next build",
+    "start": "node scripts/start.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run build",
+    "seed": "node scripts/seed.mjs"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.6",
-    "hono": "^4.10.7",
-    "marked": "^18.0.2",
-    "nanoid": "^5.1.11",
-    "sanitize-html": "^2.17.3",
-    "zod": "^4.4.1"
+    "dotenv": "^16.4.7",
+    "hono": "^4.7.0",
+    "zod": "^3.24.1",
+    "nanoid": "^5.0.9",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "framer-motion": "^12.0.0",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.0"
   }
 }

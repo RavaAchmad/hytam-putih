@@ -2,7 +2,7 @@
 
 Production-oriented luxury editorial commerce site for a Pterodactyl Node.js container. The brand is fictional: **MAISON RAVA**, a dark cinematic maison for surreal tailoring, object jewelry, collection stories, mock invoice checkout, and a token-protected CMS.
 
-This repo intentionally keeps the stable single-process architecture already present in the project: **Hono SSR + Hono API + JSON file storage**. It avoids a custom Next.js server because Pterodactyl reliability, low memory usage, and no native dependencies are the priority for this version.
+This repo runs through **Next.js production startup** while preserving the existing **Hono SSR + Hono API + JSON file storage** app behind a catch-all route handler. Pterodactyl starts it with `npm start`, which loads `.env` through `dotenv` and launches `next start -H 0.0.0.0 -p <port>`.
 
 ## Features
 
@@ -19,7 +19,8 @@ This repo intentionally keeps the stable single-process architecture already pre
 ## Stack
 
 - Runtime: Node.js 20+
-- Server/API: Hono + `@hono/node-server`
+- Web runtime: Next.js 15 production server
+- Server/API: Hono route app mounted through Next route handlers
 - Storage: JSON files in `DATA_DIR`
 - Validation: Zod
 - IDs: Nano ID
@@ -30,7 +31,7 @@ This repo intentionally keeps the stable single-process architecture already pre
 
 This repo is designed so you can edit locally and let Pterodactyl install dependencies on the server. Do not commit `node_modules/` or `package-lock.json`; both are ignored.
 
-If you choose to test locally:
+Local install and production check:
 
 ```sh
 npm install
@@ -44,19 +45,25 @@ Development command:
 npm run dev
 ```
 
+Seed or inspect the JSON store:
+
+```sh
+npm run seed
+```
+
 ## Pterodactyl Setup
 
 1. Upload or git pull the project files.
-2. Set startup command:
-
-```sh
-npm start
-```
-
-3. Set install command:
+2. Set install command:
 
 ```sh
 npm install && npm run build
+```
+
+3. Set startup command:
+
+```sh
+npm start
 ```
 
 4. Set allocation port in the panel.
@@ -74,7 +81,7 @@ SITE_URL=https://your-domain.example
 
 6. Start the server.
 
-On startup the server logs app name, environment, host, port, data directory, and health URL. Production fails fast if `ADMIN_TOKEN` or `DATA_DIR` is missing/unsafe.
+On startup `scripts/start.mjs` logs host, port, data directory, and health URL. It reads `SERVER_PORT` first, then `PORT`, and always binds Next to `0.0.0.0` unless `HOST` is explicitly changed.
 
 ## Environment
 
@@ -82,10 +89,10 @@ See `.env.example` and `pterodactyl.env.example`.
 
 Important variables:
 
-- `PORT` or `SERVER_PORT`: container port, fallback `3000`.
+- `SERVER_PORT` or `PORT`: container port, fallback `3000`.
 - `HOST`: should be `0.0.0.0` in Pterodactyl.
-- `DATA_DIR`: persistent storage, default `/home/container/data` when available, otherwise `./data`.
-- `ADMIN_TOKEN`: admin login token. Default `change-me-admin-token` is only allowed outside production.
+- `DATA_DIR`: persistent storage. `scripts/start.mjs` defaults it to `/home/container/data`.
+- `ADMIN_TOKEN`: admin login token.
 - `SITE_URL`: public URL used for deployment metadata.
 - `MAX_UPLOAD_BYTES`: upload limit, default 3000000.
 - `CONTACT_WHATSAPP`: optional WhatsApp link/number.
@@ -193,7 +200,7 @@ npm run check
 npm run health
 ```
 
-`npm run build` performs syntax and static production guards. `npm run check` adds smoke tests when dependencies are installed.
+`npm run build` creates the production Next build. `npm run check` runs TypeScript validation and then the build.
 
 ## Troubleshooting
 

@@ -1,10 +1,10 @@
 # Project Summary
 
 - Tujuan aplikasi: website luxury editorial commerce untuk brand fiksi **MAISON RAVA** dengan homepage campaign, collections, shop, product detail, cart, checkout invoice mock, order status, maison story, editorial, search, dan admin CMS.
-- Tech stack utama: Node.js 20+, Hono SSR/API, `@hono/node-server`, Zod validation, Nano ID, Marked + sanitize-html, JSON file storage, structured CSS tokens, vanilla JS untuk cart/admin interaksi.
+- Tech stack utama: Node.js 20+, Next.js production server, Hono SSR/API, Zod validation, Nano ID, Marked + sanitize-html, JSON file storage, structured CSS tokens, vanilla JS untuk cart/admin interaksi.
 - DB/queue/integrasi penting: DB Not found; queue Not found; payment gateway nyata Not found; storage runtime ada di `DATA_DIR/*.json` dan `DATA_DIR/uploads/`.
-- Pola arsitektur singkat: Hono route -> `readContent()`/`writeContent()` JSON store -> SSR renderer untuk pages atau API JSON -> browser JS untuk cart/admin.
-- Catatan arsitektur: tidak memakai Next.js pada versi ini karena target utama adalah Pterodactyl single-process yang stabil dan ringan.
+- Pola arsitektur singkat: Next catch-all route -> Hono route -> `readContent()`/`writeContent()` JSON store -> SSR renderer untuk pages atau API JSON -> browser JS untuk cart/admin.
+- Catatan arsitektur: startup produksi memakai `next start -H 0.0.0.0 -p <port>` lewat `scripts/start.mjs`, dengan Hono app tetap menjadi lapisan routing aplikasi.
 
 # Core Logic Flow (Function-Level Flowchart)
 
@@ -24,13 +24,16 @@
 - `POST /api/newsletter|contact|orders` -> rate limit -> Zod parse -> `writeContent()` -> atomic JSON write.
 - `POST /api/admin/login` -> compare JSON token with `ADMIN_TOKEN` -> `{ ok, data }`.
 - `GET|POST|PATCH|DELETE /api/admin/*` -> Bearer token guard -> Zod validation -> CRUD array in JSON store -> `writeContent()`.
-- `npm start` -> `scripts/preflight.mjs` -> env/data-dir write check -> `src/server.js`.
-- `npm run build` -> syntax checks -> `scripts/check-static.mjs`.
+- `npm start` -> `scripts/start.mjs` -> `dotenv/config` -> `next start -H 0.0.0.0 -p <SERVER_PORT|PORT>`.
+- `npm run build` -> `next build` -> route handler imports Hono app.
 
 # Clean Tree
 
 ```txt
 .
+|-- app/
+|   `-- [[...slug]]/
+|       `-- route.js
 |-- public/
 |   |-- assets/
 |   |-- app.js
@@ -45,6 +48,8 @@
 |   |-- generate-assets.ps1
 |   |-- health-check.mjs
 |   |-- preflight.mjs
+|   |-- seed.mjs
+|   |-- start.mjs
 |   `-- smoke-test.mjs
 |-- src/
 |   |-- api-routes.js
@@ -59,17 +64,25 @@
 |-- .env.example
 |-- .gitignore
 |-- Dockerfile
+|-- next.config.mjs
 |-- package.json
+|-- postcss.config.mjs
 |-- pterodactyl.env.example
 |-- README.md
+|-- tailwind.config.js
+|-- tsconfig.json
 `-- SYSTEM_MAP.md
 ```
 
 # Module Map (The Chapters)
 
+- `app/[[...slug]]/route.js`
+  - Fungsi/class publik utama: exported HTTP method handlers.
+  - Peran modul: bridge Next App Router ke `app.fetch(request)` milik Hono untuk semua page/API route dinamis.
+
 - `src/server.js`
   - Fungsi/class publik utama: exported `app`, Hono routes, static/upload handlers, sitemap/robots, server startup.
-  - Peran modul: entrypoint Hono SSR/API untuk public pages, admin shell, static files, uploads, and Pterodactyl listen.
+  - Peran modul: Hono SSR/API untuk public pages, admin shell, static files, uploads, dan fallback standalone listen.
 
 - `src/api-routes.js`
   - Fungsi/class publik utama: exported `apiRoutes`, `productListPayload`, CRUD route handlers, `ok`, `errorJson`.
@@ -111,6 +124,14 @@
   - Fungsi/class publik utama: top-level preflight.
   - Peran modul: cek env production wajib dan akses tulis `DATA_DIR` sebelum server start.
 
+- `scripts/start.mjs`
+  - Fungsi/class publik utama: top-level Next launcher.
+  - Peran modul: load `.env` dengan `dotenv/config`, pilih `SERVER_PORT` atau `PORT`, default `HOST=0.0.0.0`, default `DATA_DIR=/home/container/data`, lalu spawn `next start`.
+
+- `scripts/seed.mjs`
+  - Fungsi/class publik utama: top-level seed runner.
+  - Peran modul: load `.env` dengan `dotenv/config`, buat seed JSON store, dan laporkan isi `DATA_DIR`.
+
 - `scripts/check-static.mjs`
   - Fungsi/class publik utama: top-level static guard.
   - Peran modul: cek budget source/client, SSR refs, security assumptions, dependency declarations, dan template wiring.
@@ -128,7 +149,8 @@
 - Lokasi env/config:
   - `.env.example`: contoh env umum.
   - `pterodactyl.env.example`: contoh env Pterodactyl.
-  - `package.json`: scripts/dependencies/runtime engine.
+- `package.json`: scripts/dependencies/runtime engine untuk Next + Hono.
+- `next.config.mjs`, `postcss.config.mjs`, `tailwind.config.js`, `tsconfig.json`: konfigurasi build Next/Tailwind/TypeScript.
   - `Dockerfile`: optional container reference.
 - Skema data runtime:
   - `site.json`: brand/site settings, categories, quick strip, house code, metrics, boutiques, appointment, newsletter, media.
@@ -156,13 +178,14 @@
 # External Integrations
 
 - npm registry: dependency install di server/Pterodactyl via `npm install && npm run build`.
+- Next.js runtime: `npm start` menjalankan `next start` dan bind ke `0.0.0.0`.
 - Browser mail client: `mailto:` inquiry links.
 - Optional WhatsApp: `CONTACT_WHATSAPP` renders buyer inquiry link only when configured.
 - Runtime DB/payment/email API/queue/external CMS: Not found.
 
 # Risks / Blind Spots
 
-- Tidak memakai Next.js App Router pada versi ini; dipilih Hono SSR karena paling stabil untuk Pterodactyl single container saat ini.
+- Next App Router dipakai sebagai host produksi; route rendering utama tetap berasal dari Hono SSR sehingga migration ke React pages bisa dilakukan bertahap.
 - Admin token prototype disimpan di browser `localStorage`; cukup untuk v1 single-admin, bukan multi-user auth production enterprise.
 - JSON file store single-writer; concurrent admin writes dapat memakai last-write-wins.
 - Mock payment bukan payment gateway nyata; status bisa diubah via admin/API webhook mock.

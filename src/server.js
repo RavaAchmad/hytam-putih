@@ -1,7 +1,7 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
+import { createServer } from 'node:http'
+import { Readable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
-import { serve } from '@hono/node-server'
-import { serveStatic } from '@hono/node-server/serve-static'
 import { compress } from 'hono/compress'
 import { cors } from 'hono/cors'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
@@ -41,14 +41,15 @@ import {
   renderShopIndex
 } from './render.js'
 
+const isProduction = process.env.NODE_ENV === 'production'
+
 export const app = new Hono()
 
-const port = Number(process.env.PORT || process.env.SERVER_PORT || 3000)
+const port = Number(process.env.SERVER_PORT || process.env.PORT || 3000)
 const hostname = process.env.HOST || '0.0.0.0'
 const adminToken = process.env.ADMIN_TOKEN || (isProduction ? '' : 'change-me-admin-token')
 const sessionSecret = process.env.ADMIN_SESSION_SECRET || adminToken || 'dev-session-secret'
 const sessionMaxAge = 60 * 60 * 24 * 7
-const isProduction = process.env.NODE_ENV === 'production'
 const publicApiOrigin = process.env.PUBLIC_API_ORIGIN || ''
 
 const csp = [
@@ -64,7 +65,7 @@ const csp = [
   "style-src 'self'"
 ].join('; ')
 
-if (isProduction) {
+if (isProduction && isMainModule()) {
   const missing = []
   if (!process.env.ADMIN_TOKEN || adminToken === 'change-me-admin-token') missing.push('ADMIN_TOKEN')
   if (!process.env.DATA_DIR) missing.push('DATA_DIR')
@@ -547,18 +548,33 @@ app.post('/admin/content-json', async (c) => {
   }
 })
 
-app.use('/*', serveStatic({ root: './public' }))
-
 app.notFound((c) => {
   return notFound(c)
 })
 
 if (isMainModule()) {
-  serve({
-    fetch: app.fetch,
-    hostname,
-    port
+  const server = createServer(async (request, response) => {
+    try {
+      const webResponse = await app.fetch(toWebRequest(request))
+      response.statusCode = webResponse.status
+      for (const [key, value] of webResponse.headers) {
+        response.setHeader(key, value)
+      }
+
+      if (!webResponse.body) {
+        response.end()
+        return
+      }
+
+      Readable.fromWeb(webResponse.body).pipe(response)
+    } catch (error) {
+      response.statusCode = 500
+      response.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      response.end(isProduction ? 'Internal Server Error' : error.message)
+    }
   })
+
+  server.listen(port, hostname)
 
   console.log([
     `${process.env.APP_NAME || 'MAISON RAVA'} listening`,
@@ -568,6 +584,34 @@ if (isMainModule()) {
     `dataDir=${dataDir}`,
     `health=http://${hostname}:${port}/api/health`
   ].join(' | '))
+}
+
+function toWebRequest(request) {
+  const host = request.headers.host || `${hostname}:${port}`
+  const url = new URL(request.url || '/', `http://${host}`)
+  const init = {
+    method: request.method,
+    headers: requestHeaders(request.headers)
+  }
+
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    init.body = Readable.toWeb(request)
+    init.duplex = 'half'
+  }
+
+  return new Request(url, init)
+}
+
+function requestHeaders(rawHeaders) {
+  const headers = new Headers()
+  for (const [key, value] of Object.entries(rawHeaders)) {
+    if (Array.isArray(value)) {
+      for (const item of value) headers.append(key, item)
+    } else if (value) {
+      headers.set(key, value)
+    }
+  }
+  return headers
 }
 
 function campaignFromBody(body, fallbackSlug = '') {
