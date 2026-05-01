@@ -1,0 +1,9 @@
+{
+  "name": "VAEL Atelier",
+  "short_name": "VAEL",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f3",
+  "theme_color": "#f7f7f3",
+  "icons": []
+}
